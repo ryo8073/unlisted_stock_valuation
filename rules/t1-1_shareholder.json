@@ -1,0 +1,36 @@
+{
+    "id": "T1-1",
+    "title": "第1表の1：株主および評価方式の判定（R6）",
+    "sourceRef": "国税庁 第1表の1 R6",
+    "calc": {
+      "selfVoteRatio": {"$": "self.votes / totals.votes"},
+      "familyGroupRatio": {"$": "groups.family.votes / totals.votes"},
+      "topGroupRatio": {"$": "groups.top.votes / totals.votes"}
+    },
+    "grid": {
+      "cols_family_⑤": [
+        {"label": "50%超", "minOpen": 0.5},
+        {"label": "30%以上50%未満", "min": 0.3, "max": 0.5},
+        {"label": "30%未満", "max": 0.3}
+      ],
+      "rows_top_⑥": [
+        {"label": "15%以上", "min": 0.15},
+        {"label": "15%未満", "max": 0.15}
+      ],
+      "decision": [
+        ["同族株主等","同族株主等"],
+        ["同族株主等","同族株主等以外"],
+        ["同族株主等","同族株主等以外"]
+      ],
+      "note": "⑤=同族関係者グループ、⑥=筆頭株主グループ。格子で区分（PDFの表）。"
+    },
+    "minorityOverride": {
+      "when": [
+        {"left": "gridResult", "op": "eq", "right": "同族株主等"},
+        {"left": "selfVoteRatio", "op": "lt", "right": 0.05}
+      ],
+      "then": "少数株式所有者（配当還元方式ルートへ）",
+      "sourceRef": "国税庁 第1表の1 注記：5％未満特則"
+    }
+  }
+  

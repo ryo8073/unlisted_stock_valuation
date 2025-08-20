@@ -1,0 +1,31 @@
+{
+    "id": "T3",
+    "title": "第3表：一般の評価会社の株式等の価額計算（R6）",
+    "sourceRef": "国税庁 第3表 R6",
+    "dispatch": [
+      {"when": {"left": "specialType", "op": "eq", "right": "清算中の会社"}, "goto": "清算"},
+      {"when": {"left": "companySize", "op": "eq", "right": "大会社"}, "goto": "大会社"},
+      {"when": {"left": "LClass", "op": "in", "right": ["中の大","中の中","中の小"]}, "goto": "中会社"},
+      {"when": {"left": "LClass", "op": "eq", "right": "小会社"}, "goto": "小会社"}
+    ],
+    "nodes": {
+      "大会社": {
+        "formula": "min(similarIndustryPPS, netAssetPPS)",
+        "note": "第3表：①類似業種比準価額、②1株当たり純資産価額のいずれか低い方。"
+      },
+      "中会社": {
+        "formula": "min(netAssetPPS, similarIndustryPPS * L + (netAssetPPS80 ?? netAssetPPS*0.8) * (1 - L))",
+        "note": "第3表：L=0.90/0.75/0.60。80%相当額が未入力なら純資産×0.8を採用。"
+      },
+      "小会社": {
+        "formula": "netAssetPPS",
+        "option_mix_0_5": "similarIndustryPPS*0.5 + netAssetPPS*0.5 (任意適用時)",
+        "note": "第3表：原則は純資産価額。"
+      },
+      "清算": {
+        "formula": "liquidationExpectedPerShare",
+        "note": "第3表：清算分配見込額ベース。"
+      }
+    }
+  }
+  

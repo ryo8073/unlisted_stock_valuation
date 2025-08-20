@@ -1,0 +1,50 @@
+{
+    "id": "T2",
+    "title": "第2表：特定の評価会社の判定（後順位優先／R6）",
+    "sourceRef": "国税庁 第2表 R6",
+    "order": ["比準要素数1","株式等保有特定会社","土地保有特定会社","開業後3年未満の会社等","開業前または休業中の会社","清算中の会社"],
+    "rules": {
+      "比準要素数1": {
+        "when": {
+          "op": "ALL",
+          "all": [
+            {"left": "table4.B1_zeroCount_at_直前期末", "op": "gte", "right": 2},
+            {"left": "table4_B2_zeroCount_at_直前々期末", "op": "gte", "right": 2}
+          ]
+        },
+        "note": "直前期末(①)・直前々期末(②)の要素（B/C/D）のうち、いずれか2がゼロ。",
+        "sourceRef": "第2表-1"
+      },
+      "株式等保有特定会社": {
+        "calc": {"ratio": {"$": "securitiesTotal / totalAssetsBook"}},
+        "when": [{"left": "ratio", "op": "gte", "right": 0.50}],
+        "sourceRef": "第2表-2（株式等保有割合50%以上）"
+      },
+      "土地保有特定会社": {
+        "calc": {"ratio": {"$": "landEtcTotal / totalAssetsBook"}},
+        "threshold": { "largeOrMiddle": 0.70, "small": 0.90 },
+        "smallJudge_byAssetsOnly": {
+          "卸売業": {"min": 70000000, "max": 2000000000},
+          "小売・サービス業": {"min": 40000000, "max": 1500000000},
+          "卸売・小売・サービス以外": {"min": 50000000, "max": 1500000000}
+        },
+        "note": "会社規模が大/中=70%以上、小=90%以上。第2表内で小会社の基準（資産範囲）を個別に判定。",
+        "sourceRef": "第2表-3"
+      },
+      "開業後3年未満の会社等": {
+        "when": [{"left": "yearsSinceOpening", "op": "lt", "right": 3}],
+        "and": [{"left": "table4_B1C1D1_zeroSum", "op": "eq", "right": 0}],
+        "sourceRef": "第2表-4"
+      },
+      "開業前または休業中の会社": {
+        "when": [{"left": "isPreOpeningOrSuspended", "op": "eq", "right": true}],
+        "sourceRef": "第2表-5"
+      },
+      "清算中の会社": {
+        "when": [{"left": "isLiquidating", "op": "eq", "right": true}],
+        "sourceRef": "第2表-6"
+      }
+    },
+    "resolution": "直列評価で最後に該当した型を採用（後順位優先）"
+  }
+  
