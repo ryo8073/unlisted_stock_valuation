@@ -461,6 +461,7 @@ export default function Step1ShareholderPage() {
           <SimpleShareholderInput onComplete={handleSimpleInputComplete} />
         )}
 
+        {inputMethod === 'detailed' && (<>
         <FormSection title={
               <div className="flex items-center">
                 総議決権数
@@ -545,6 +546,7 @@ export default function Step1ShareholderPage() {
             次へ
           </button>
         </FormActions>
+        </>)}
       </FormCard>
     </div>
   );

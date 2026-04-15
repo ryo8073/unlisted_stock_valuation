@@ -132,13 +132,9 @@ export default function SimpleShareholderInput({ onComplete }: SimpleShareholder
         const evaluationMethod = determineEvaluationMethod({ ...newAnswers, taxpayerIsOfficer: value });
         newAnswers.evaluationMethod = evaluationMethod;
         setAnswers(newAnswers);
-        
-        // 特例的評価方式の場合は追加情報が必要
-        if (evaluationMethod === '特例的評価方式') {
-          setShowAdditionalInput(true);
-        } else {
-          onComplete(newAnswers as SimpleShareholderData);
-        }
+
+        // 議決権数の追加情報入力を表示（原則的・特例的ともに必要）
+        setShowAdditionalInput(true);
         return;
     }
     
@@ -180,12 +176,12 @@ export default function SimpleShareholderInput({ onComplete }: SimpleShareholder
   if (showAdditionalInput) {
     return (
       <div className="space-y-6">
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="text-lg font-semibold text-blue-800 mb-2">
-            特例的評価方式が適用されます
+        <div className={`border rounded-lg p-4 ${answers.evaluationMethod === '特例的評価方式' ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200'}`}>
+          <h3 className={`text-lg font-semibold mb-2 ${answers.evaluationMethod === '特例的評価方式' ? 'text-blue-800' : 'text-green-800'}`}>
+            {answers.evaluationMethod === '特例的評価方式' ? '特例的評価方式（配当還元方式）が適用されます' : '原則的評価方式が適用されます'}
           </h3>
-          <p className="text-blue-700 text-sm">
-            配当還元方式の計算に必要な追加情報を入力してください。
+          <p className={`text-sm ${answers.evaluationMethod === '特例的評価方式' ? 'text-blue-700' : 'text-green-700'}`}>
+            株主判定の保存に必要な議決権情報を入力してください。
           </p>
         </div>
 
