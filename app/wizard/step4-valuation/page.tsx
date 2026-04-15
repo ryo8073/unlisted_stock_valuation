@@ -117,10 +117,10 @@ export default function Step4ValuationPage() {
       // TODO: monthlyAデータが追加されたら月次比較に対応
       return industryData.A || 0;
     } else if (rule === 'previousYearAverage') {
-      const previousYearData = findData(`令和${currentYearNumber - 1}��`);
+      const previousYearData = findData(`令和${currentYearNumber - 1}年`);
       return previousYearData ? previousYearData.A : 0;
     } else if (rule === 'last2YearsAverage') {
-      const prev1 = findData(`令和${currentYearNumber - 1}��`);
+      const prev1 = findData(`令和${currentYearNumber - 1}年`);
       const prev2 = findData(`令和${currentYearNumber - 2}年`);
       const values: number[] = [];
       if (prev1) values.push(prev1.A);

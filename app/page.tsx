@@ -23,7 +23,7 @@ export default function HomePage() {
             非上場株式評価システム
           </h1>
           <p className="text-lg sm:text-xl text-gray-600 leading-relaxed">
-            財産評価基本通��178〜189条に基づく<br />
+            財産評価基本通達178〜189条に基づく<br />
             取引相場のない株式の評価方式診断
           </p>
         </div>
@@ -92,12 +92,12 @@ export default function HomePage() {
         </div>
 
         <div className="mt-8 bg-amber-50 border border-amber-200 rounded-xl p-4 text-left">
-          <h4 className="text-sm font-semibold text-amber-800 mb-2">ご利用��の注意</h4>
+          <h4 className="text-sm font-semibold text-amber-800 mb-2">ご利用上の注意</h4>
           <ul className="text-xs text-amber-700 space-y-1">
             <li>- 本システムは財産評価基本通達に基づく概算評価ツールです</li>
-            <li>- 計算結果は参考値であり、正式な税務申告には使用で���ません</li>
+            <li>- 計算結果は参考値であり、正式な税務申告には使用できません</li>
             <li>- 実際の申告には税理士等の専門家にご相談ください</li>
-            <li>- 入力データはブラウザのロー���ルストレージにのみ保存されます</li>
+            <li>- 入力データはブラウザのローカルストレージにのみ保存されます</li>
           </ul>
         </div>
       </div>
