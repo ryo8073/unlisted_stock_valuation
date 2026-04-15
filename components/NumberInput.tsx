@@ -115,10 +115,10 @@ export function CurrencyInput({
 }: CurrencyInputProps) {
   return (
     <NumberInput
-      {...props}
       unit={currency}
       step={0.01}
       placeholder="0.00"
+      {...props}
     />
   )
 }

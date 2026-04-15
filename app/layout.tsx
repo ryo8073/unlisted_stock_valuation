@@ -1,10 +1,15 @@
 import './globals.css'
+import type { Metadata, Viewport } from 'next'
 
-export const metadata = { 
-  title: "非上場株式評価(R6)", 
+export const metadata: Metadata = {
+  title: "非上場株式評価(R6)",
   description: "株主判定→特定会社等→会社規模→評価",
-  viewport: "width=device-width, initial-scale=1",
-  themeColor: "#3b82f6"
+}
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#3b82f6",
 }
 
 export default function RootLayout({ children }:{children:React.ReactNode}) {

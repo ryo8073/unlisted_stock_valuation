@@ -143,24 +143,43 @@ export default function SimpleShareholderInput({ onComplete }: SimpleShareholder
   };
 
   const determineEvaluationMethod = (data: any): '原則的評価方式' | '特例的評価方式' => {
-    // フローチャートに基づく判定ロジック
+    // 通達188条フローチャートに基づく判定ロジック
     if (data.topGroupRatio === 'over50' || data.topGroupRatio === '30to50') {
       // 同族株主のいる会社
       if (data.familyGroupRatio === 'over50' || data.familyGroupRatio === '30to50') {
         // 同族株主
-        return data.taxpayerVoteRatio === 'over5' ? '原則的評価方式' : '特例的評価方式';
+        if (data.hasCentralShareholder) {
+          // 中心的な同族株主がいる
+          if (data.taxpayerVoteRatio === 'over5' || data.taxpayerIsOfficer) {
+            return '原則的評価方式';
+          } else {
+            return '特例的評価方式';
+          }
+        } else {
+          // 中心的な同族株主がいない → 原則的評価方式
+          return '原則的評価方式';
+        }
       } else {
-        // 同族株主以外の株主
-        return data.taxpayerVoteRatio === 'over5' ? '原則的評価方式' : '特例的評価方式';
+        // 同族株主以外の株主 → 特例的評価方式
+        return '特例的評価方式';
       }
     } else {
       // 同族株主のいない会社
       if (data.familyGroupRatio === 'over50' || data.familyGroupRatio === '30to50') {
-        // 同族株主等
-        return data.taxpayerVoteRatio === 'over5' ? '原則的評価方式' : '特例的評価方式';
+        // 同族株主等（15%以上グループ）
+        if (data.taxpayerIsCentral) {
+          // 中心的な株主がいる
+          if (data.taxpayerVoteRatio === 'over5' || data.taxpayerIsOfficer) {
+            return '原則的評価方式';
+          } else {
+            return '特例的評価方式';
+          }
+        } else {
+          return '原則的評価方式';
+        }
       } else {
-        // 等外の株主
-        return data.taxpayerVoteRatio === 'over5' ? '原則的評価方式' : '特例的評価方式';
+        // 等外の株主 → 特例的評価方式
+        return '特例的評価方式';
       }
     }
   };

@@ -20,7 +20,9 @@ interface SpecialCompanyData {
 export default function Step2SpecialPage() {
   const router = useRouter();
   const { setSpecialCompanyData, specialCompanyData } = useEvalStore();
-  const { companySizeData } = useEvalStore();
+  // Note: companySizeData is not yet available at Step 2 (set in Step 3)
+  // Land threshold defaults to 70% (large/medium). For small companies, the NTA
+  // uses asset-level-based thresholds in 第2表, but that requires Step 3 data.
   const [data, setData] = useState<SpecialCompanyData>(
     specialCompanyData || {
       hasSpecialElements: false,
@@ -41,15 +43,10 @@ export default function Step2SpecialPage() {
   const determineSpecialTypes = (): string[] => {
     const types: string[] = [];
 
-    // Get company size from evalStore (use the already-destructured value)
-    const companySize = companySizeData?.companySize;
-
     // 土地保有特定会社の判定
-    // Thresholds: 70% for large/medium, 90% for small
-    let landThreshold = 70;
-    if (companySize === 'small') {
-      landThreshold = 90;
-    }
+    // 大会社・中会社: 70%以上、小会社: 90%以上
+    // ※会社規模はStep3で判定するため、ここでは70%を基準とする
+    const landThreshold = 70;
     if (data.landRatio >= landThreshold) {
       types.push("landHolding");
     }
@@ -59,12 +56,13 @@ export default function Step2SpecialPage() {
       types.push("stockHolding");
     }
 
-    // 開業後3年未満の判定
+    // 開業後3年未満の判定（日付ベースで正確に計算）
     if (data.establishmentDate) {
       const establishment = new Date(data.establishmentDate);
       const now = new Date();
-      const yearsDiff = now.getFullYear() - establishment.getFullYear();
-      if (yearsDiff < 3) {
+      const diffMs = now.getTime() - establishment.getTime();
+      const diffYears = diffMs / (1000 * 60 * 60 * 24 * 365.25);
+      if (diffYears < 3) {
         types.push("newCompany");
       }
     }
@@ -149,7 +147,7 @@ export default function Step2SpecialPage() {
                     label={
                       <div className="flex items-center">
                         土地保有比率
-                        <Tooltip text={`総資産に占める土地等の割合です。${companySizeData?.companySize === 'small' ? '小会社は90%以上、それ以外は70%以上で特定会社に該当します。' : '70%以上で特定会社に該当します。'}`} />
+                        <Tooltip text="総資産に占める土地等の割合です。大会社・中会社は70%以上、小会社は90%以上で特定会社に該当します（会社規模は次のステップで判定）。" />
                       </div>
                     }
                     value={data.landRatio}

@@ -77,7 +77,7 @@ export function getErrorMessage(field: string, validator: string, params?: any):
     required: `${field}は必須項目です`,
     min: `${field}は${params}以上で入力してください`,
     max: `${field}は${params}以下で入力してください`,
-    range: `${field}は${params.min}以上${params.max}以下で入力してください`,
+    range: `${field}は${params?.min}以上${params?.max}以下で入力してください`,
     positive: `${field}は正の数で入力してください`,
     percentage: `${field}は0%以上100%以下で入力してください`,
   }

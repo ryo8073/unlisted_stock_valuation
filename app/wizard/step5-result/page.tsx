@@ -128,7 +128,7 @@ export default function Step5ResultPage() {
             {valuationData.selectedIndustryData && (
               <div className="bg-blue-50 p-4 rounded-lg md:col-span-2">
                 <h4 className="font-medium text-blue-900 mb-2">類似業種比準価額データ</h4>
-                <p className="text-sm text-blue-700">評価年: {valuationData.selectedIndustryData.year}</p>
+                <p className="text-sm text-blue-700">評価年: {valuationData.selectedIndustryData.year ?? '—'}</p>
                 <p className="text-sm text-blue-700">大分類: {valuationData.selectedIndustryData.majorCategory}</p>
                 <p className="text-sm text-blue-700">中分類: {valuationData.selectedIndustryData.mediumCategory}</p>
                 <p className="text-sm text-blue-700">小分類: {valuationData.selectedIndustryData.minorCategory}</p>

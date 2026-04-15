@@ -26,7 +26,7 @@ export default function Step3SizePage() {
       employees: 0,
       assets: 0,
       sales: 0,
-      industry: "サービス",
+      industry: "その他",
       companySize: "small",
       lRatio: 0,
     }

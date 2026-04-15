@@ -10,7 +10,7 @@ export function evaluateAll(input: EvaluateInput) {
   const trail: Record<string, unknown>[] = [];
 
   // --- 第1表の1：株主判定（財産評価基本通達188条フローチャート準拠）
-  const totalsVotes = input.totals.votes;
+  const totalsVotes = input.totals.votes || 1; // ゼロ除算防止
   const taxpayer = input.shareholders.find(s => s.isTaxpayer);
   const selfVoteRatio = (taxpayer?.votes ?? 0) / totalsVotes;
   const familyGroupRatio = (input.groups.family.votes)/totalsVotes;
@@ -132,10 +132,12 @@ export function evaluateAll(input: EvaluateInput) {
 
   // --- 第2表：特定会社（後順位優先）
   let specialType: string|undefined;
-  // 比準要素数1
-  const B1C1D1_zeros = [input.table4?.B1||0, input.table4?.C1||0, input.table4?.D1||0].filter(x=>x===0).length;
-  const B2C2D2_zeros = [input.table4?.B2||0, input.table4?.C2||0, input.table4?.D2||0].filter(x=>x===0).length;
-  if (B1C1D1_zeros >= 2 && B2C2D2_zeros >= 2) specialType = "比準要素数1";
+  // 比準要素数1（table4データが存在する場合のみ判定）
+  if (input.table4) {
+    const B1C1D1_zeros = [input.table4.B1??0, input.table4.C1??0, input.table4.D1??0].filter(x=>x===0).length;
+    const B2C2D2_zeros = [input.table4.B2??0, input.table4.C2??0, input.table4.D2??0].filter(x=>x===0).length;
+    if (B1C1D1_zeros >= 2 && B2C2D2_zeros >= 2) specialType = "比準要素数1";
+  }
 
   // 株式等保有特定会社
   const secRatio = (input as any).securitiesTotal && input.company.totalAssetsBook ? (input as any).securitiesTotal/input.company.totalAssetsBook : undefined;

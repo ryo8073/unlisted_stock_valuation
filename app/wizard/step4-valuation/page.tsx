@@ -65,8 +65,7 @@ export default function Step4ValuationPage() {
 
   const updateData = (field: keyof ValuationData, value: any) => {
     setData(prev => ({ ...prev, [field]: value }));
-    // リアルタイムで計算を実行
-    setTimeout(() => performRealTimeCalculation(), 0);
+    // リアルタイム計算はuseEffect（line 290）で実行される
   };
 
   // Effect to update selectedIndustryData based on selections
@@ -273,7 +272,9 @@ export default function Step4ValuationPage() {
       similarIndustryValue: similarValue,
       finalValue: calculationResult.finalValue,
       method: calculationResult.method,
-      selectedIndustryData: selectedIndustryData,
+      selectedIndustryData: selectedIndustryData
+        ? { ...selectedIndustryData, year: selectedYear }
+        : undefined,
     };
     setValuationData(finalData);
     router.push("/wizard/step5-result");

@@ -117,7 +117,9 @@ export default function Step1ShareholderPage() {
 
   useEffect(() => {
     const taxpayer = shareholders.find(sh => sh.isTaxpayer);
-    const minority = taxpayer ? (taxpayer.votes / totalVotingRights) < 0.05 : false;
+    const minority = taxpayer && totalVotingRights > 0
+      ? (taxpayer.votes / totalVotingRights) < 0.05
+      : false;
     setIsMinorityShareholder(minority);
   }, [shareholders, totalVotingRights]);
 
@@ -135,13 +137,13 @@ export default function Step1ShareholderPage() {
   // 筆頭株主グループの自動判定
   const updateTopGroupStatus = (updatedShareholders: Shareholder[]) => {
     if (updatedShareholders.length === 0) return updatedShareholders;
-    
-    // 最大議決権を持つ株主を特定
+
+    // 最大議決権を持つ株主を特定（全員0の場合は誰も筆頭でない）
     const maxVotes = Math.max(...updatedShareholders.map(sh => sh.votes));
 
     return updatedShareholders.map(sh => ({
       ...sh,
-      inTopGroup: sh.votes === maxVotes
+      inTopGroup: maxVotes > 0 && sh.votes === maxVotes
     }));
   };
 
@@ -194,20 +196,27 @@ export default function Step1ShareholderPage() {
 
   const handleSimpleInputComplete = (data: SimpleShareholderData) => {
     // 簡易入力の結果を詳細入力形式に変換
+    const totalVotes = data.additionalInfo.totalVotingRights;
+    const taxpayerVotes = data.additionalInfo.taxpayerVotes;
+    // 少数株主判定を簡易入力のデータから直接計算
+    const simpleMinority = totalVotes > 0
+      ? (taxpayerVotes / totalVotes) < 0.05
+      : false;
+
     const convertedShareholders: Shareholder[] = [
       {
         id: "1",
         name: "納税義務者",
         relation: "納税義務者",
         officer: data.taxpayerIsOfficer,
-        votes: data.additionalInfo.taxpayerVotes,
+        votes: taxpayerVotes,
         inFamilyGroup: data.familyGroupRatio !== 'under30',
         inTopGroup: data.topGroupRatio !== 'under30',
         isTaxpayer: true,
       }
     ];
 
-    const convertedData = convertToStoreFormat(convertedShareholders, data.additionalInfo.totalVotingRights, isMinorityShareholder);
+    const convertedData = convertToStoreFormat(convertedShareholders, totalVotes, simpleMinority);
     setShareholderData(convertedData);
     router.push('/wizard/step2-special');
   };
