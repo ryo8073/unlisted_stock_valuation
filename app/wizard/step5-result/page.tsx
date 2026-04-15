@@ -48,8 +48,22 @@ export default function Step5ResultPage() {
     }
   };
 
+  const { resetAll } = useEvalStore();
+
   const handleNewEvaluation = () => {
+    resetAll();
     router.push("/wizard/step1-shareholder");
+  };
+
+  const getMethodDescription = (method: string) => {
+    switch (method) {
+      case "dividendYield": return { name: "配当還元方式", ref: "通達188-2条", detail: "年配当金額（下限2円50銭）÷ 10%" };
+      case "similarIndustry": return { name: "類似業種比準価額方式", ref: "通達180条", detail: "A × ((b/B' + c/C' + d/D') / 3) × しんしゃく率" };
+      case "netAsset": return { name: "純資産価額方式", ref: "通達185条", detail: "1株当たり純資産価額（相続税評価額）" };
+      case "smallCombined": return { name: "併用方式（小会社任意適用）", ref: "通達179条(3)", detail: "類似業種比準 × 0.5 + 純資産 × 0.5" };
+      case "combined": return { name: "併用方式", ref: "通達179条(2)", detail: "類似業種比準 × L + 純資産(80%相当額) × (1-L)" };
+      default: return { name: method, ref: "", detail: "" };
+    }
   };
 
   if (!valuationData?.finalValue) {
@@ -82,22 +96,29 @@ export default function Step5ResultPage() {
         totalSteps={5}
       >
         <FormSection title="最終評価額">
-          <div className="bg-green-50 p-6 rounded-lg border border-green-200">
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-xl border border-green-200 shadow-sm">
             <div className="text-center">
               <h3 className="text-lg font-medium text-green-900 mb-2">
                 1株当たり評価額
               </h3>
-              <div className="text-4xl font-bold text-green-900 mb-2">
+              <div className="text-4xl sm:text-5xl font-bold text-green-900 mb-3">
                 {formatCurrency(valuationData.finalValue)}
               </div>
-              <p className="text-sm text-green-700">
-                評価方式: {
-                  valuationData.method === "dividendYield" ? "配当還元方式" :
-                  valuationData.method === "similarIndustry" ? "類似業種比準価額方式" :
-                  valuationData.method === "netAsset" ? "純資産価額方式" :
-                  valuationData.method === "smallCombined" ? "併用方式（小会社任意適用）" : "併用方式"
-                }
-              </p>
+              <div className="inline-flex items-center gap-2 bg-green-100 px-4 py-2 rounded-full">
+                <span className="text-sm font-medium text-green-800">
+                  {getMethodDescription(valuationData.method).name}
+                </span>
+                {getMethodDescription(valuationData.method).ref && (
+                  <span className="text-xs text-green-600 bg-green-200 px-2 py-0.5 rounded-full">
+                    {getMethodDescription(valuationData.method).ref}
+                  </span>
+                )}
+              </div>
+              {getMethodDescription(valuationData.method).detail && (
+                <p className="text-xs text-green-600 mt-2">
+                  {getMethodDescription(valuationData.method).detail}
+                </p>
+              )}
             </div>
           </div>
         </FormSection>
@@ -233,20 +254,25 @@ export default function Step5ResultPage() {
           </div>
         </FormSection>
 
-        <div className="flex items-center justify-between pt-8 border-t border-gray-200/50">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-700">
+          <p className="font-semibold text-amber-800 mb-1">免責事項</p>
+          <p>本計算結果は財産評価基本通達に基づく概算値です。正式な税務申告にはご利用いただけません。実際の評価には税理士等の専門家にご相談ください。</p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-8 border-t border-gray-200/50">
           <button
             onClick={handleBack}
-            className="btn-secondary"
+            className="btn-secondary w-full sm:w-auto justify-center"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
             戻る
           </button>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             <button
               onClick={handleExportPDF}
-              className="btn-success"
+              className="btn-success w-full sm:w-auto justify-center"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -255,7 +281,7 @@ export default function Step5ResultPage() {
             </button>
             <button
               onClick={handleNewEvaluation}
-              className="btn-primary"
+              className="btn-primary w-full sm:w-auto justify-center"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
