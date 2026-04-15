@@ -57,7 +57,7 @@ export default function Step5ResultPage() {
 
   const getMethodDescription = (method: string) => {
     switch (method) {
-      case "dividendYield": return { name: "配当還元方式", ref: "通達188-2条", detail: "年配当金額（下限2円50銭）÷ 10%" };
+      case "dividendYield": return { name: "配当還元方式", ref: "通達188-2条", detail: "(年配当金額（下限2円50銭）÷ 10%) × (1株当たり資本金等の額 ÷ 50円)" };
       case "similarIndustry": return { name: "類似業種比準価額方式", ref: "通達180条", detail: "A × ((b/B' + c/C' + d/D') / 3) × しんしゃく率" };
       case "netAsset": return { name: "純資産価額方式", ref: "通達185条", detail: "1株当たり純資産価額（相続税評価額）" };
       case "smallCombined": return { name: "併用方式（小会社任意適用）", ref: "通達179条(3)", detail: "類似業種比準 × 0.5 + 純資産 × 0.5" };

@@ -52,6 +52,7 @@ interface ValuationData {
   netAssetPerShare: number
   netAssetValue: number
   dividendYield: number
+  capitalPerShare: number // 1株当たりの資本金等の額（通達188-2条）
   finalValue: number
   method: string
   similarIndustryValue?: number;

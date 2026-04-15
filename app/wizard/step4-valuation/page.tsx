@@ -14,10 +14,11 @@ interface ValuationData {
   netAssetPerShare: number;
   netAssetValue: number;
   dividendYield: number;
+  capitalPerShare: number; // 1株当たりの資本金等の額（通達188-2条）
   finalValue: number;
   method: string;
-  similarIndustryValue?: number; // Add this
-  selectedIndustryData?: SimilarIndustryDataRow; // Add this
+  similarIndustryValue?: number;
+  selectedIndustryData?: SimilarIndustryDataRow;
 }
 
 export default function Step4ValuationPage() {
@@ -35,7 +36,8 @@ export default function Step4ValuationPage() {
       profitPerShare: 0,
       netAssetPerShare: 0,
       netAssetValue: 0,
-      dividendYield: 0.05, // デフォルト5%
+      dividendYield: 0.05,
+      capitalPerShare: 50, // デフォルト50円（額面50円）
       finalValue: 0,
       method: "",
     }
@@ -151,10 +153,11 @@ export default function Step4ValuationPage() {
     const { isMinorityShareholder } = shareholderData || {};
 
     // 少数株主特則の適用（配当還元方式）通達188-2条
+    // 配当還元価額 = (年配当金額 ÷ 10%) × (1株当たりの資本金等の額 ÷ 50円)
     if (isMinorityShareholder && data.dividendPerShare > 0) {
-      // 年配当金額（2円50銭が下限）÷ 10%
       const adjustedDividend = Math.max(data.dividendPerShare, 2.5);
-      const dividendYieldValue = adjustedDividend / 0.10;
+      const capitalFactor = (data.capitalPerShare || 50) / 50;
+      const dividendYieldValue = (adjustedDividend / 0.10) * capitalFactor;
       setCalculationResult({
         finalValue: dividendYieldValue,
         method: "dividendYield",
@@ -498,8 +501,8 @@ export default function Step4ValuationPage() {
             <CurrencyInput
               label={
                 <div className="flex items-center">
-                  純資産価額
-                  <Tooltip text="会社の純資産を基に算出される株価です。" />
+                  純資産価額（1株当たり）
+                  <Tooltip text="相続税評価額ベースの純資産価額です。法人税額等相当額（37%）を控除した後の金額を入力してください。算式: (相続税評価額による総資産 - 負債 - 法人税額等相当額) ÷ 発行済株式数" />
                 </div>
               }
               value={data.netAssetValue}
@@ -509,21 +512,40 @@ export default function Step4ValuationPage() {
               error={errors.netAssetValue}
               dataTestId="net-asset-value"
             />
+            <div className="md:col-span-2 text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
+              <p className="font-medium text-gray-700 mb-1">純資産価額の算定について（通達185条）</p>
+              <p>法人税額等相当額 = (相続税評価額による純資産 - 帳簿価額による純資産) × 37%</p>
+              <p>1株当たり純資産価額 = (相続税評価額による総資産 - 負債合計 - 法人税額等相当額) ÷ 発行済株式数</p>
+            </div>
           </div>
         </FormSection>
 
         {isMinorityShareholder && (
           <FormSection title="少数株主特則（配当還元方式）">
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <p className="text-sm text-blue-800 mb-2">
+            <div className="bg-blue-50 p-4 rounded-lg space-y-3">
+              <p className="text-sm text-blue-800">
                 少数株主（5%未満）のため、配当還元方式が適用されます。
               </p>
-              <p className="text-xs text-blue-700 mb-2">
-                計算式: 年配当金額（2円50銭未満の場合は2円50銭）÷ 10%
+              <p className="text-xs text-blue-700">
+                計算式: (年配当金額（下限2円50銭）÷ 10%) × (1株当たり資本金等の額 ÷ 50円)
               </p>
+              <div className="mt-2">
+                <CurrencyInput
+                  label={
+                    <div className="flex items-center">
+                      1株当たりの資本金等の額
+                      <Tooltip text="直前期末の資本金等の額 ÷ 発行済株式数で計算します。額面50円の場合は50円です。" />
+                    </div>
+                  }
+                  value={data.capitalPerShare}
+                  onChange={(value) => updateData("capitalPerShare", value)}
+                  placeholder="例: 50"
+                  min={0}
+                  dataTestId="capital-per-share"
+                />
+              </div>
               <p className="text-xs text-blue-600">
-                ※ 配当還元方式では、上記「1株当たり年配当」の値を使用します。
-                通達188-2条により還元率は10%（固定）です。
+                ※ 通達188-2条により還元率は10%（固定）です。資本金等の額が50円でない場合は調整が行われます。
               </p>
             </div>
           </FormSection>
@@ -569,7 +591,7 @@ export default function Step4ValuationPage() {
                 <div>
                   <p className="font-medium text-blue-600">少数株主特則: 配当還元方式</p>
                   <p className="text-xs text-gray-600">
-                    評価式: 年配当金額（下限2円50銭） ÷ 10%
+                    評価式: (年配当金額（下限2円50銭） ÷ 10%) × (1株当たり資本金等の額 ÷ 50円)
                   </p>
                 </div>
               )}

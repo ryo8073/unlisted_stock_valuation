@@ -31,8 +31,18 @@ export function evaluateAll(input: EvaluateInput) {
     let groupShareholderType: "同族株主" | "同族株主以外の株主" | "同族株主等" | "等外の株主";
 
     if (shareholderType === "同族株主のいる会社") {
-      // 納税義務者が同族関係者グループに属しているか
-      if (taxpayer?.inFamilyGroup && familyGroupRatio >= 0.3) {
+      // 通達188条の50%超例外ルール:
+      // 同族株主の1グループの議決権が50%超の場合、そのグループに属する株主のみが「同族株主」
+      // 50%超のグループが存在しない場合は、30%以上のグループに属する株主すべてが「同族株主」
+      if (topGroupRatio > 0.5) {
+        // 50%超グループがある → そのグループに属する場合のみ同族株主
+        if (taxpayer?.inTopGroup) {
+          groupShareholderType = "同族株主";
+        } else {
+          groupShareholderType = "同族株主以外の株主";
+        }
+      } else if (taxpayer?.inFamilyGroup && familyGroupRatio >= 0.3) {
+        // 50%超グループなし → 30%以上のグループに属していれば同族株主
         groupShareholderType = "同族株主";
       } else {
         groupShareholderType = "同族株主以外の株主";
@@ -181,10 +191,12 @@ export function evaluateAll(input: EvaluateInput) {
   let perShare = NaN;
   
   if (isDividendYieldMethod) {
-    // 配当還元方式
+    // 配当還元方式（通達188-2条）
+    // (年配当金額（下限2円50銭）÷ 10%) × (1株当たり資本金等の額 ÷ 50円)
     const dividendPerShare = input.valuationInputs?.dividendPerShare ?? 0;
-    const dividendYield = input.valuationInputs?.dividendYield ?? 0;
-    perShare = dividendPerShare / dividendYield;
+    const capitalPerShare = input.valuationInputs?.capitalPerShare ?? 50;
+    const adjustedDividend = Math.max(dividendPerShare, 2.5);
+    perShare = (adjustedDividend / 0.10) * (capitalPerShare / 50);
   } else if (specialType === "清算中の会社") {
     perShare = input.valuationInputs?.liquidationExpectedPerShare ?? NaN;
   } else if (size === "大会社") {

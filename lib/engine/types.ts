@@ -17,13 +17,14 @@ export type EvaluateInput = {
     isLiquidating?: boolean;
     yearsSinceOpening?: number;
   };
-  valuationInputs?: { 
-    similarIndustryPPS?: number; 
-    netAssetPPS?: number; 
-    netAssetPPS80?: number; 
+  valuationInputs?: {
+    similarIndustryPPS?: number;
+    netAssetPPS?: number;
+    netAssetPPS80?: number;
     liquidationExpectedPerShare?: number;
     dividendPerShare?: number;
     dividendYield?: number;
+    capitalPerShare?: number; // 1株当たりの資本金等の額（通達188-2条、デフォルト50円）
   };
   table4?: { B1?: number; C1?: number; D1?: number; B2?: number; C2?: number; D2?: number; }; // 第2表の補助
 }

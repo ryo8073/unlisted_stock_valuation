@@ -295,7 +295,7 @@ describe('Step 2: 特定会社等（第2表）', () => {
       const input = {
         landRatio: 0.8, // 70%以上
         stockRatio: 0.6, // 50%以上
-        establishmentDate: '2023-12-01', // 2年未満
+        establishmentDate: '2025-06-01', // 2年未満
         businessStatus: '開業前',
         isLiquidation: true
       }
