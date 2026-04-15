@@ -1,7 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { FormCard, FormSection } from "@/components/FormCard";
-import { DecisionTrail, DecisionTrailSummary } from "@/components/DecisionTrail";
 import { useEvalStore } from "@/lib/store/evalStore";
 import { formatCurrency } from "@/lib/utils";
 
@@ -95,7 +94,8 @@ export default function Step5ResultPage() {
                 評価方式: {
                   valuationData.method === "dividendYield" ? "配当還元方式" :
                   valuationData.method === "similarIndustry" ? "類似業種比準価額方式" :
-                  valuationData.method === "netAsset" ? "純資産価額方式" : "併用方式"
+                  valuationData.method === "netAsset" ? "純資産価額方式" :
+                  valuationData.method === "smallCombined" ? "併用方式（小会社任意適用）" : "併用方式"
                 }
               </p>
             </div>
@@ -104,10 +104,23 @@ export default function Step5ResultPage() {
 
         <FormSection title="評価詳細">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {valuationData.selectedIndustryData && (
+              <div className="bg-blue-50 p-4 rounded-lg md:col-span-2">
+                <h4 className="font-medium text-blue-900 mb-2">類似業種比準価額データ</h4>
+                <p className="text-sm text-blue-700">評価年: {valuationData.selectedIndustryData.year}</p>
+                <p className="text-sm text-blue-700">大分類: {valuationData.selectedIndustryData.majorCategory}</p>
+                <p className="text-sm text-blue-700">中分類: {valuationData.selectedIndustryData.mediumCategory}</p>
+                <p className="text-sm text-blue-700">小分類: {valuationData.selectedIndustryData.minorCategory}</p>
+                <p className="text-sm text-blue-700">A (株価): {valuationData.selectedIndustryData.A}</p>
+                <p className="text-sm text-blue-700">B&apos; (配当): {valuationData.selectedIndustryData.B_prime}</p>
+                <p className="text-sm text-blue-700">C&apos; (利益): {valuationData.selectedIndustryData.C_prime}</p>
+                <p className="text-sm text-blue-700">D&apos; (純資産): {valuationData.selectedIndustryData.D_prime}</p>
+              </div>
+            )}
             <div className="bg-blue-50 p-4 rounded-lg">
               <h4 className="font-medium text-blue-900 mb-2">類似業種比準価額</h4>
               <div className="text-xl font-bold text-blue-900">
-                {formatCurrency(valuationData.similarIndustryValue)}
+                {formatCurrency(valuationData.similarIndustryValue ?? 0)}
               </div>
             </div>
             <div className="bg-purple-50 p-4 rounded-lg">
@@ -165,7 +178,7 @@ export default function Step5ResultPage() {
               </div>
             )}
 
-            {specialCompanyData && (
+            {specialCompanyData ? (
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h4 className="font-medium text-gray-900 mb-2">特定会社等の判定（第2表）</h4>
                 <div className="text-sm">
@@ -181,9 +194,16 @@ export default function Step5ResultPage() {
                   )}
                 </div>
               </div>
+            ) : (
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium text-gray-900 mb-2">特定会社等の判定（第2表）</h4>
+                <div className="text-sm text-gray-600">
+                  特定会社等の判定はスキップされました。
+                </div>
+              </div>
             )}
 
-            {companySizeData && (
+            {companySizeData ? (
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h4 className="font-medium text-gray-900 mb-2">会社規模の判定（第1表の2）</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -200,6 +220,13 @@ export default function Step5ResultPage() {
                       <span className="font-semibold">{companySizeData.lRatio}</span>
                     </div>
                   )}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium text-gray-900 mb-2">会社規模の判定（第1表の2）</h4>
+                <div className="text-sm text-gray-600">
+                  会社規模の判定はスキップされました。
                 </div>
               </div>
             )}

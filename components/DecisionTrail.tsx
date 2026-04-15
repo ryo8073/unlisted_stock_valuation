@@ -178,7 +178,6 @@ export function DecisionTrailSummary({
   trail,
   className,
 }: DecisionTrailSummaryProps) {
-  const totalRules = trail.reduce((sum, node) => sum + (node.children?.length || 0), 0)
   const appliedRules = trail.reduce((sum, node) => {
     return sum + (node.children?.filter((child: DecisionNode) => child.result !== 'not_applied').length || 0)
   }, 0)

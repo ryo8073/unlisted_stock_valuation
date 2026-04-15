@@ -2,7 +2,7 @@ import React from 'react'
 import { cn } from '@/lib/utils'
 
 interface NumberInputProps {
-  label?: string
+  label?: React.ReactNode
   value: number | string
   onChange: (value: number) => void
   placeholder?: string

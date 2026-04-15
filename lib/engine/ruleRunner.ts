@@ -7,9 +7,9 @@ import { largeFormula, midFormula, smallFormula } from "./calculators";
 import type { EvaluateInput } from "./types";
 
 export function evaluateAll(input: EvaluateInput) {
-  const trail: any[] = [];
+  const trail: Record<string, unknown>[] = [];
 
-  // --- 第1表の1：株主判定（フローチャート準拠）
+  // --- 第1表の1：株主判定（財産評価基本通達188条フローチャート準拠）
   const totalsVotes = input.totals.votes;
   const taxpayer = input.shareholders.find(s => s.isTaxpayer);
   const selfVoteRatio = (taxpayer?.votes ?? 0) / totalsVotes;
@@ -17,30 +17,30 @@ export function evaluateAll(input: EvaluateInput) {
   const topGroupRatio = (input.groups.top.votes)/totalsVotes;
 
   function evaluateShareholderType() {
-    // ステップ1: 筆頭株主グループの議決権割合による判定
+    // ステップ1: 同族株主のいる会社かどうか（通達188条）
+    // 株主の1人とその同族関係者の議決権合計が30%以上のグループがある場合
     let shareholderType: "同族株主のいる会社" | "同族株主のいない会社";
-    
-    if (topGroupRatio > 0.5) {
-      shareholderType = "同族株主のいる会社";
-    } else if (topGroupRatio >= 0.3) {
+
+    if (topGroupRatio >= 0.3) {
       shareholderType = "同族株主のいる会社";
     } else {
       shareholderType = "同族株主のいない会社";
     }
 
-    // ステップ2: 同族株主グループ内の株主タイプ判定
+    // ステップ2: 納税義務者の属するグループの判定
     let groupShareholderType: "同族株主" | "同族株主以外の株主" | "同族株主等" | "等外の株主";
-    
+
     if (shareholderType === "同族株主のいる会社") {
-      if (familyGroupRatio > 0.5) {
-        groupShareholderType = "同族株主";
-      } else if (familyGroupRatio >= 0.3) {
+      // 納税義務者が同族関係者グループに属しているか
+      if (taxpayer?.inFamilyGroup && familyGroupRatio >= 0.3) {
         groupShareholderType = "同族株主";
       } else {
         groupShareholderType = "同族株主以外の株主";
       }
     } else {
-      if (topGroupRatio >= 0.15) {
+      // 同族株主のいない会社の場合
+      // 議決権15%以上のグループに属する株主は「同族株主等」
+      if (topGroupRatio >= 0.15 && taxpayer?.inTopGroup) {
         groupShareholderType = "同族株主等";
       } else {
         groupShareholderType = "等外の株主";
@@ -50,47 +50,56 @@ export function evaluateAll(input: EvaluateInput) {
     // ステップ3: 納税義務者の取得後の議決権割合判定
     const isOver5Percent = selfVoteRatio >= 0.05;
 
-    // ステップ4: 中心的な株主の判定（簡略化）
-    // 実際の実装では、より詳細な判定が必要
-    const isCentralShareholder = familyGroupRatio >= 0.25; // 25%以上を中心的な株主と仮定
+    // ステップ4: 中心的な同族株主の判定（通達188条(2)）
+    // 同族株主の1人とその配偶者・直系血族・兄弟姉妹・1親等姻族の
+    // 議決権合計が25%以上の場合、その者は「中心的な同族株主」
+    const isCentralFamilyShareholder = familyGroupRatio >= 0.25;
 
-    // ステップ5: 納税義務者が中心的な株主に該当するか
-    const taxpayerIsCentral = isCentralShareholder && taxpayer?.inFamilyGroup;
+    // 中心的な株主の判定（同族株主のいない会社の場合）
+    // 議決権15%以上のグループに属し、単独で10%以上を有する株主
+    const isCentralShareholder = selfVoteRatio >= 0.10;
 
-    // ステップ6: 納税義務者が役員であるか
+    // ステップ5: 納税義務者が役員であるか
     const taxpayerIsOfficer = taxpayer?.officer || false;
 
-    // ステップ7: 評価方式の判定
+    // ステップ6: 評価方式の判定（通達188条・188-2条準拠）
     let evaluationMethod: "原則的評価方式" | "特例的評価方式";
-    
-    // フローチャートに基づく判定ロジック
+
     if (shareholderType === "同族株主のいる会社") {
       if (groupShareholderType === "同族株主") {
-        if (isOver5Percent) {
-          evaluationMethod = "原則的評価方式";
+        // 同族株主の場合
+        if (isCentralFamilyShareholder) {
+          // 中心的な同族株主がいる場合
+          if (isOver5Percent || taxpayerIsOfficer) {
+            evaluationMethod = "原則的評価方式";
+          } else {
+            evaluationMethod = "特例的評価方式";
+          }
         } else {
-          evaluationMethod = "特例的評価方式";
+          // 中心的な同族株主がいない場合 → 原則的評価方式
+          evaluationMethod = "原則的評価方式";
         }
       } else {
-        if (isOver5Percent) {
-          evaluationMethod = "原則的評価方式";
-        } else {
-          evaluationMethod = "特例的評価方式";
-        }
+        // 同族株主以外の株主 → 特例的評価方式（配当還元方式）
+        evaluationMethod = "特例的評価方式";
       }
     } else {
+      // 同族株主のいない会社
       if (groupShareholderType === "同族株主等") {
-        if (isOver5Percent) {
-          evaluationMethod = "原則的評価方式";
+        // 議決権15%以上グループに属する株主
+        if (isCentralShareholder) {
+          // 中心的な株主がいる場合
+          if (isOver5Percent || taxpayerIsOfficer) {
+            evaluationMethod = "原則的評価方式";
+          } else {
+            evaluationMethod = "特例的評価方式";
+          }
         } else {
-          evaluationMethod = "特例的評価方式";
+          evaluationMethod = "原則的評価方式";
         }
       } else {
-        if (isOver5Percent) {
-          evaluationMethod = "原則的評価方式";
-        } else {
-          evaluationMethod = "特例的評価方式";
-        }
+        // 議決権15%未満のグループ → 特例的評価方式
+        evaluationMethod = "特例的評価方式";
       }
     }
 
@@ -98,8 +107,8 @@ export function evaluateAll(input: EvaluateInput) {
       shareholderType,
       groupShareholderType,
       isOver5Percent,
+      isCentralFamilyShareholder,
       isCentralShareholder,
-      taxpayerIsCentral,
       taxpayerIsOfficer,
       evaluationMethod,
       selfVoteRatio,

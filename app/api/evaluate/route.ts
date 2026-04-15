@@ -42,7 +42,7 @@ export async function POST(req: NextRequest, res?: any) {
       shareholderResult: result.shareholder ? {
         familyGroupRatio: result.shareholder.familyGroupRatio || 0,
         leadingShareholderGroupRatio: result.shareholder.topGroupRatio || 0,
-        isMinorityShareholder: result.shareholder.minority || false,
+        isMinorityShareholder: (result.shareholder.selfVoteRatio || 0) < 0.05,
         appliedRules: [],
       } : undefined,
       specialCompanyResult: result.special ? {

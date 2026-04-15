@@ -52,7 +52,7 @@ export class IndustryDataDatabase implements DatabaseOperations {
     console.log('Bulk updating industry data:', data.length, 'records');
   }
 
-  async getAvailablePeriods(industry: IndustryCategory): Promise<{year: number, quarter: number}[]> {
+  async getAvailablePeriods(_industry: IndustryCategory): Promise<{year: number, quarter: number}[]> {
     // 実際の実装ではSELECT DISTINCTクエリを実行
     return [
       { year: 2024, quarter: 1 },

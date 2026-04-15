@@ -44,15 +44,18 @@ interface CompanySizeData {
   lRatio: number
 }
 
+import { SimilarIndustryDataRow } from "@/lib/database/similarIndustryData";
+
 interface ValuationData {
   dividendPerShare: number
   profitPerShare: number
   netAssetPerShare: number
-  similarIndustryValue: number
   netAssetValue: number
   dividendYield: number
   finalValue: number
   method: string
+  similarIndustryValue?: number;
+  selectedIndustryData?: SimilarIndustryDataRow;
 }
 
 interface EvalStore {

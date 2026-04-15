@@ -124,7 +124,6 @@ function sectionTable(
   doc.moveDown(0.3);
 
   const x0 = doc.x;
-  const y0 = doc.y;
   const rowHeight = 25; // 行の高さを増加
 
   // ページに収まるかチェック

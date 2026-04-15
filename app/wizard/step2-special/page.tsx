@@ -2,10 +2,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FormCard, FormSection, FormActions } from "@/components/FormCard";
-import { NumberInput, PercentageInput } from "@/components/NumberInput";
+import { PercentageInput } from "@/components/NumberInput";
 import { SpecialCompanyBadge } from "@/components/RatioBadge";
 import { useEvalStore } from "@/lib/store/evalStore";
-import { validators, getErrorMessage } from "@/lib/utils";
+import { Tooltip } from "@/components/Tooltip";
 
 interface SpecialCompanyData {
   hasSpecialElements: boolean;
@@ -20,6 +20,7 @@ interface SpecialCompanyData {
 export default function Step2SpecialPage() {
   const router = useRouter();
   const { setSpecialCompanyData, specialCompanyData } = useEvalStore();
+  const { companySizeData } = useEvalStore();
   const [data, setData] = useState<SpecialCompanyData>(
     specialCompanyData || {
       hasSpecialElements: false,
@@ -40,8 +41,16 @@ export default function Step2SpecialPage() {
   const determineSpecialTypes = (): string[] => {
     const types: string[] = [];
 
+    // Get company size from evalStore (use the already-destructured value)
+    const companySize = companySizeData?.companySize;
+
     // 土地保有特定会社の判定
-    if (data.landRatio >= 70) {
+    // Thresholds: 70% for large/medium, 90% for small
+    let landThreshold = 70;
+    if (companySize === 'small') {
+      landThreshold = 90;
+    }
+    if (data.landRatio >= landThreshold) {
       types.push("landHolding");
     }
 
@@ -130,13 +139,19 @@ export default function Step2SpecialPage() {
                 data-testid="has-special-elements"
               />
               <span className="text-sm font-medium">特定会社等の判定を行う</span>
+              <Tooltip text="会社が特定の条件に該当する場合、評価方法が異なることがあります。該当しないことが明らかな場合はチェックを外してください。" />
           </label>
 
             {data.hasSpecialElements && (
               <div className="space-y-6 pl-6 border-l-4 border-primary-100">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <PercentageInput
-                    label="土地保有比率"
+                    label={
+                      <div className="flex items-center">
+                        土地保有比率
+                        <Tooltip text={`総資産に占める土地等の割合です。${companySizeData?.companySize === 'small' ? '小会社は90%以上、それ以外は70%以上で特定会社に該当します。' : '70%以上で特定会社に該当します。'}`} />
+                      </div>
+                    }
                     value={data.landRatio}
                     onChange={(value) => updateData("landRatio", value)}
                     placeholder="0.0"
@@ -144,7 +159,12 @@ export default function Step2SpecialPage() {
                     dataTestId="land-ratio"
                   />
                   <PercentageInput
-                    label="株式等保有比率"
+                    label={
+                      <div className="flex items-center">
+                        株式等保有比率
+                        <Tooltip text="総資産に占める株式等の割合です。50%以上で特定会社に該当します。" />
+                      </div>
+                    }
                     value={data.stockRatio}
                     onChange={(value) => updateData("stockRatio", value)}
                     placeholder="0.0"
@@ -156,7 +176,8 @@ export default function Step2SpecialPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     設立年月日
-          </label>
+                    <Tooltip text="開業後3年未満の会社は特定会社に該当します。" />
+                  </label>
             <input
                     type="date"
                     value={data.establishmentDate}
@@ -169,7 +190,8 @@ export default function Step2SpecialPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     事業状況
-          </label>
+                    <Tooltip text="開業前または休業中の会社は特定会社に該当します。" />
+                  </label>
                   <select
                     value={data.businessStatus}
                     onChange={(e) => updateData("businessStatus", e.target.value)}
@@ -191,6 +213,7 @@ export default function Step2SpecialPage() {
                     data-testid="is-liquidation"
                   />
                   <span className="text-sm">清算中である</span>
+                  <Tooltip text="清算中の会社は特定会社に該当します。" />
           </label>
               </div>
             )}

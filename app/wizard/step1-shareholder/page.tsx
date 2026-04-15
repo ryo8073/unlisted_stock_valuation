@@ -7,6 +7,7 @@ import { useEvalStore } from "@/lib/store/evalStore";
 import { validators, getErrorMessage } from "@/lib/utils";
 import InputMethodSelector from '@/components/InputMethodSelector';
 import SimpleShareholderInput, { SimpleShareholderData } from '@/components/SimpleShareholderInput';
+import { Tooltip } from '@/components/Tooltip';
 
 interface Shareholder {
   id: string;
@@ -20,7 +21,7 @@ interface Shareholder {
 }
 
 // evalStoreのShareholderData型に合わせた変換関数
-const convertToStoreFormat = (shareholders: Shareholder[], totalVotingRights: number) => {
+const convertToStoreFormat = (shareholders: Shareholder[], totalVotingRights: number, isMinorityShareholder: boolean) => {
   const familyGroupVotes = shareholders
     .filter(sh => sh.inFamilyGroup)
     .reduce((sum, sh) => sum + sh.votes, 0);
@@ -32,9 +33,9 @@ const convertToStoreFormat = (shareholders: Shareholder[], totalVotingRights: nu
   const familyGroupRatio = totalVotingRights > 0 ? familyGroupVotes / totalVotingRights : 0;
   const leadingShareholderGroupRatio = totalVotingRights > 0 ? topGroupVotes / totalVotingRights : 0;
   
-  const taxpayer = shareholders.find(sh => sh.isTaxpayer);
-  const isMinorityShareholder = taxpayer ? (taxpayer.votes / totalVotingRights) < 0.05 : false;
-  
+  // taxpayer lookup reserved for future use (e.g. taxpayer-specific logic)
+  shareholders.find(sh => sh.isTaxpayer);
+
   return {
     shareholders: shareholders.map(sh => ({
       id: sh.id,
@@ -112,7 +113,13 @@ export default function Step1ShareholderPage() {
   
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [inputMethod, setInputMethod] = useState<'detailed' | 'simple'>('detailed');
-  const [showSimpleInput, setShowSimpleInput] = useState(false);
+  const [isMinorityShareholder, setIsMinorityShareholder] = useState(false);
+
+  useEffect(() => {
+    const taxpayer = shareholders.find(sh => sh.isTaxpayer);
+    const minority = taxpayer ? (taxpayer.votes / totalVotingRights) < 0.05 : false;
+    setIsMinorityShareholder(minority);
+  }, [shareholders, totalVotingRights]);
 
   // 同族関係者グループの自動判定
   const updateFamilyGroupStatus = (updatedShareholders: Shareholder[]) => {
@@ -131,8 +138,7 @@ export default function Step1ShareholderPage() {
     
     // 最大議決権を持つ株主を特定
     const maxVotes = Math.max(...updatedShareholders.map(sh => sh.votes));
-    const topShareholders = updatedShareholders.filter(sh => sh.votes === maxVotes);
-    
+
     return updatedShareholders.map(sh => ({
       ...sh,
       inTopGroup: sh.votes === maxVotes
@@ -201,7 +207,7 @@ export default function Step1ShareholderPage() {
       }
     ];
 
-    const convertedData = convertToStoreFormat(convertedShareholders, data.additionalInfo.totalVotingRights);
+    const convertedData = convertToStoreFormat(convertedShareholders, data.additionalInfo.totalVotingRights, isMinorityShareholder);
     setShareholderData(convertedData);
     router.push('/wizard/step2-special');
   };
@@ -249,21 +255,27 @@ export default function Step1ShareholderPage() {
   const handleNext = () => {
     if (!validateForm()) return;
 
-    const totalVotes = shareholders.reduce((sum, sh) => sum + sh.votes, 0);
-    const familyGroupVotes = shareholders
-      .filter(sh => sh.inFamilyGroup)
-      .reduce((sum, sh) => sum + sh.votes, 0);
-    const topGroupVotes = shareholders
-      .filter(sh => sh.inTopGroup)
-      .reduce((sum, sh) => sum + sh.votes, 0);
-
-    const data = convertToStoreFormat(shareholders, totalVotingRights);
+    const data = convertToStoreFormat(shareholders, totalVotingRights, isMinorityShareholder);
     setShareholderData(data);
     router.push("/wizard/step2-special");
   };
 
   const handleBack = () => {
     router.push("/");
+  };
+
+  const handleSkip = () => {
+    if (!validateForm()) return;
+
+    const skipData = convertToStoreFormat(shareholders, totalVotingRights, isMinorityShareholder);
+    setShareholderData(skipData);
+
+    // Clear specialCompanyData and companySizeData if skipping
+    const store = useEvalStore.getState();
+    store.setSpecialCompanyData(null as unknown as Parameters<typeof store.setSpecialCompanyData>[0]);
+    store.setCompanySizeData(null as unknown as Parameters<typeof store.setCompanySizeData>[0]);
+
+    router.push("/wizard/step4-valuation");
   };
 
   // グループ判定の説明
@@ -296,142 +308,165 @@ export default function Step1ShareholderPage() {
         step={1}
         totalSteps={5}
       >
-        <FormSection title="同族関係者・筆頭株主の定義" required>
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-            <h4 className="font-semibold text-blue-900 mb-3">判定基準</h4>
-            <div className="space-y-2 text-sm text-blue-800">
-              <div>
-                <span className="font-medium">同族関係者：</span>
-                配偶者、6親等内の血族、3親等内の姻族
-              </div>
-              <div>
-                <span className="font-medium">筆頭株主：</span>
-                最も多くの議決権を持つ株主（同数の場合は複数）
-              </div>
-              <div>
-                <span className="font-medium">同族株主等：</span>
-                議決権総数の30%以上を有する同族関係者グループ
-              </div>
-            </div>
-          </div>
-        </FormSection>
+        <InputMethodSelector
+          selectedMethod={inputMethod}
+          onMethodChange={setInputMethod}
+        />
 
-        <FormSection title="株主情報" required>
-      <div className="space-y-4">
-            {shareholders.map((shareholder, index) => (
-              <div key={shareholder.id} className="border border-gray-200 rounded-lg p-4 bg-white">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium text-gray-900">株主 {index + 1}</h4>
-                  {shareholders.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeShareholder(shareholder.id)}
-                      className="text-red-600 hover:text-red-800 text-sm"
-                    >
-                      削除
-          </button>
-                  )}
+        {inputMethod === 'detailed' && (
+          <>
+            <FormSection title="同族関係者・筆頭株主の定義" required>
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h4 className="font-semibold text-blue-900 mb-3">判定基準</h4>
+                <div className="space-y-2 text-sm text-blue-800">
+                  <div className="flex items-center">
+                    <span className="font-medium">同族関係者：</span>
+                    <Tooltip text="配偶者、子、孫、兄弟姉妹、親、祖父母、叔父叔母、甥姪などが含まれます。">
+                      <span className="ml-1">配偶者、6親等内の血族、3親等内の姻族</span>
+                    </Tooltip>
+                  </div>
+                  <div>
+                    <span className="font-medium">筆頭株主：</span>
+                    最も多くの議決権を持つ株主（同数の場合は複数）
+                  </div>
+                  <div>
+                    <span className="font-medium">同族株主等：</span>
+                    議決権総数の30%以上を有する同族関係者グループ
+                  </div>
                 </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      株主名
-                    </label>
-                    <input
-                      type="text"
-                      value={shareholder.name}
-                      onChange={(e) => updateShareholder(shareholder.id, "name", e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      placeholder="例: 田中太郎"
-                    />
-                    {errors[`shareholder-${index}-name`] && (
-                      <p className="text-red-600 text-sm mt-1">{errors[`shareholder-${index}-name`]}</p>
-                    )}
+              </div>
+            </FormSection>
+
+            <FormSection title="株主情報" required>
+              <div className="space-y-4">
+                {shareholders.map((shareholder, index) => (
+                  <div key={shareholder.id} className="border border-gray-200 rounded-lg p-4 bg-white">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium text-gray-900">株主 {index + 1}</h4>
+                      {shareholders.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeShareholder(shareholder.id)}
+                          className="text-red-600 hover:text-red-800 text-sm"
+                        >
+                          削除
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          株主名
+                        </label>
+                        <input
+                          type="text"
+                          value={shareholder.name}
+                          onChange={(e) => updateShareholder(shareholder.id, "name", e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          placeholder="例: 田中太郎"
+                        />
+                        {errors[`shareholder-${index}-name`] && (
+                          <p className="text-red-600 text-sm mt-1">{errors[`shareholder-${index}-name`]}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          続柄
+                        </label>
+                        <select
+                          value={shareholder.relation}
+                          onChange={(e) => updateShareholder(shareholder.id, "relation", e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        >
+                          {RELATION_OPTIONS.map(option => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
+                          議決権数
+                          <Tooltip text="会社の意思決定に参加できる権利の数で、通常は1株につき1個です。" />
+                        </label>
+                        <NumberInput
+                          value={shareholder.votes}
+                          onChange={(value) => updateShareholder(shareholder.id, "votes", value)}
+                          placeholder="例: 1000"
+                          min={0}
+                          error={errors[`shareholder-${index}-votes`]}
+                        />
+                      </div>
+
+                      <div className="flex items-center space-x-4">
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={shareholder.officer}
+                            onChange={(e) => updateShareholder(shareholder.id, "officer", e.target.checked)}
+                            className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                          />
+                          <span className="ml-2 text-sm text-gray-700">役員</span>
+                          <Tooltip text="会社の取締役、監査役など、役員に該当する場合にチェックします。" />
+                        </label>
+
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={shareholder.isTaxpayer}
+                            onChange={(e) => updateShareholder(shareholder.id, "isTaxpayer", e.target.checked)}
+                            className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                          />
+                          <span className="ml-2 text-sm text-gray-700">納税義務者</span>
+                          <Tooltip text="今回、株式の評価を行う対象となる方です。必ず1名指定してください。" />
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* 自動判定結果の表示 */}
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <div className="flex flex-wrap gap-2">
+                        {shareholder.inFamilyGroup && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            同族関係者
+                          </span>
+                        )}
+                        {shareholder.inTopGroup && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            筆頭株主
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
+                ))}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      続柄
-                    </label>
-                    <select
-                      value={shareholder.relation}
-                      onChange={(e) => updateShareholder(shareholder.id, "relation", e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    >
-                      {RELATION_OPTIONS.map(option => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      議決権数
-                    </label>
-                    <NumberInput
-                      value={shareholder.votes}
-                      onChange={(value) => updateShareholder(shareholder.id, "votes", value)}
-                      placeholder="例: 1000"
-                      min={0}
-                      error={errors[`shareholder-${index}-votes`]}
-                    />
-                  </div>
-
-                  <div className="flex items-center space-x-4">
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={shareholder.officer}
-                        onChange={(e) => updateShareholder(shareholder.id, "officer", e.target.checked)}
-                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">役員</span>
-                    </label>
-                    
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={shareholder.isTaxpayer}
-                        onChange={(e) => updateShareholder(shareholder.id, "isTaxpayer", e.target.checked)}
-                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">納税義務者</span>
-                    </label>
-        </div>
-          </div>
-
-                {/* 自動判定結果の表示 */}
-                <div className="mt-3 pt-3 border-t border-gray-200">
-                  <div className="flex flex-wrap gap-2">
-                    {shareholder.inFamilyGroup && (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        同族関係者
-                      </span>
-                    )}
-                    {shareholder.inTopGroup && (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        筆頭株主
-                      </span>
+                <button
+                  type="button"
+                  onClick={addShareholder}
+                  className="w-full py-2 px-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-gray-400 hover:text-gray-800 transition-colors"
+                >
+                  + 株主を追加
+                </button>
+              </div>
+            </FormSection>
+          </>
         )}
-      </div>
-                </div>
+
+        {inputMethod === 'simple' && (
+          <SimpleShareholderInput onComplete={handleSimpleInputComplete} />
+        )}
+
+        <FormSection title={
+              <div className="flex items-center">
+                総議決権数
+                <Tooltip text="会社が発行している議決権のある株式の総数です。" />
               </div>
-            ))}
-
-            <button
-              type="button"
-              onClick={addShareholder}
-              className="w-full py-2 px-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-gray-400 hover:text-gray-800 transition-colors"
-            >
-              + 株主を追加
-            </button>
-          </div>
-        </FormSection>
-
-        <FormSection title="総議決権数" required>
+            } required>
           <NumberInput
             value={totalVotingRights}
             onChange={setTotalVotingRights}
@@ -466,6 +501,26 @@ export default function Step1ShareholderPage() {
         {errors.taxpayer && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <p className="text-red-600 text-sm">{errors.taxpayer}</p>
+          </div>
+        )}
+
+        {isMinorityShareholder && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p className="text-blue-800 text-sm font-medium mb-2">
+              納税義務者が少数株主であるため、評価方式は配当還元方式が適用されます。
+            </p>
+            <p className="text-blue-700 text-xs mb-3">
+              この場合、特定会社等の判定（ステップ2）および会社規模の判定（ステップ3）は、最終的な評価額に直接影響しません。
+            </p>
+            <button
+              onClick={handleSkip}
+              className="btn-secondary text-blue-800 border-blue-800 hover:bg-blue-100"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+              評価計算へスキップ（ステップ4へ）
+            </button>
           </div>
         )}
 

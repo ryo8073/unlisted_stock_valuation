@@ -6,6 +6,7 @@ import { NumberInput, CurrencyInput } from "@/components/NumberInput";
 import { CompanySizeBadge } from "@/components/RatioBadge";
 import { useEvalStore } from "@/lib/store/evalStore";
 import { validators, getErrorMessage } from "@/lib/utils";
+import { Tooltip } from "@/components/Tooltip";
 
 interface CompanySizeData {
   employees: number;
@@ -48,13 +49,13 @@ export default function Step3SizePage() {
                      : data.industry === '小売・サービス' ? '小売・サービス業'
                      : '卸売・小売・サービス以外';
 
-    // 従業員バンド
+    // 従業員バンド（rules/t1-2_size.json準拠）
     const empBands = [
       { label: '大会社' as const, min: 70 },
       { label: '中の大' as const, min: 36, max: 69 },
       { label: '中の中' as const, min: 21, max: 35 },
-      { label: '中の小' as const, min: 11, max: 20 },
-      { label: '小会社' as const, max: 10 },
+      { label: '中の小' as const, min: 6, max: 20 },
+      { label: '小会社' as const, max: 5 },
     ];
     const empBand = empBands.find(b => (b.min == null || fte >= b.min) && (b.max == null || fte <= b.max))?.label || '小会社';
 
@@ -186,7 +187,12 @@ export default function Step3SizePage() {
         <FormSection title="会社基本情報" required>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <NumberInput
-              label="従業員数"
+              label={
+                <div className="flex items-center">
+                  従業員数
+                  <Tooltip text="会社の従業員数（フルタイム換算）を入力します。70人以上の場合は大会社に該当します。" />
+                </div>
+              }
               value={data.employees}
               onChange={(value) => updateData("employees", value)}
               placeholder="例: 50"
@@ -197,6 +203,7 @@ export default function Step3SizePage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 業種
+                <Tooltip text="選択した業種によって、会社規模を判定する際の資産や売上の基準値が異なります。" />
               </label>
           <select
                 value={data.industry}
@@ -215,7 +222,12 @@ export default function Step3SizePage() {
         <FormSection title="財務情報" required>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <CurrencyInput
-              label="資産"
+              label={
+                <div className="flex items-center">
+                  資産
+                  <Tooltip text="会社の総資産額を入力します。従業員数、売上とともに会社規模の判定に用いられます。" />
+                </div>
+              }
               value={data.assets}
               onChange={(value) => updateData("assets", value)}
               placeholder="例: 100000000"
@@ -224,7 +236,12 @@ export default function Step3SizePage() {
               dataTestId="assets"
             />
             <CurrencyInput
-              label="売上"
+              label={
+                <div className="flex items-center">
+                  売上
+                  <Tooltip text="会社の年間売上高を入力します。従業員数、資産とともに会社規模の判定に用いられます。" />
+                </div>
+              }
               value={data.sales}
               onChange={(value) => updateData("sales", value)}
               placeholder="例: 50000000"

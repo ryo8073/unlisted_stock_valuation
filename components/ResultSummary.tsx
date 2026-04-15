@@ -2,7 +2,6 @@
 "use client";
 
 import React from "react";
-import { useEvalStore } from "@/lib/store/evalStore";
 
 interface EvalResult {
   shareholder?: {

@@ -2,19 +2,22 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { FormCard, FormSection, FormActions } from "@/components/FormCard";
-import { NumberInput, CurrencyInput } from "@/components/NumberInput";
+import { CurrencyInput } from "@/components/NumberInput";
 import { useEvalStore } from "@/lib/store/evalStore";
 import { validators, getErrorMessage } from "@/lib/utils";
+import { Tooltip } from "@/components/Tooltip";
+import { similarIndustryDatabase, SimilarIndustryDataRow, SimilarIndustryDatabase } from "@/lib/database/similarIndustryData";
 
 interface ValuationData {
   dividendPerShare: number;
   profitPerShare: number;
   netAssetPerShare: number;
-  similarIndustryValue: number;
   netAssetValue: number;
   dividendYield: number;
   finalValue: number;
   method: string;
+  similarIndustryValue?: number; // Add this
+  selectedIndustryData?: SimilarIndustryDataRow; // Add this
 }
 
 export default function Step4ValuationPage() {
@@ -31,7 +34,6 @@ export default function Step4ValuationPage() {
       dividendPerShare: 0,
       profitPerShare: 0,
       netAssetPerShare: 0,
-      similarIndustryValue: 0,
       netAssetValue: 0,
       dividendYield: 0.05, // デフォルト5%
       finalValue: 0,
@@ -39,6 +41,14 @@ export default function Step4ValuationPage() {
     }
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const [selectedYear, setSelectedYear] = useState<string>('令和7年'); // Default to latest year
+  const [selectedMajorCategory, setSelectedMajorCategory] = useState<string>('');
+  const [selectedMediumCategory, setSelectedMediumCategory] = useState<string>('');
+  const [selectedMinorCategory, setSelectedMinorCategory] = useState<string>('');
+  const [selectedMonth, setSelectedMonth] = useState<string>('1月'); // Default to January
+  const [stockPriceSelectionRule, setStockPriceSelectionRule] = useState<'lowest3Months' | 'previousYearAverage' | 'last2YearsAverage'>('lowest3Months');
+  const [selectedIndustryData, setSelectedIndustryData] = useState<SimilarIndustryDataRow | undefined>(undefined);
 
   // リアルタイム計算結果
   const [calculationResult, setCalculationResult] = useState<{
@@ -57,16 +67,106 @@ export default function Step4ValuationPage() {
     setTimeout(() => performRealTimeCalculation(), 0);
   };
 
+  // Effect to update selectedIndustryData based on selections
+  useEffect(() => {
+    if (selectedYear && selectedMajorCategory && selectedMediumCategory && selectedMinorCategory) {
+      const foundData = similarIndustryDatabase[selectedYear]?.find(
+        (row) =>
+          row.majorCategory === selectedMajorCategory &&
+          row.mediumCategory === selectedMediumCategory &&
+          row.minorCategory === selectedMinorCategory
+      );
+      setSelectedIndustryData(foundData);
+    } else {
+      setSelectedIndustryData(undefined);
+    }
+  }, [selectedYear, selectedMajorCategory, selectedMediumCategory, selectedMinorCategory]);
+
+  // Derived state for dropdown options
+  const years = Object.keys(similarIndustryDatabase);
+  const majorCategories = selectedYear ? [...new Set(similarIndustryDatabase[selectedYear]?.map(row => row.majorCategory))] : [];
+  const mediumCategories = selectedYear && selectedMajorCategory ? [...new Set(similarIndustryDatabase[selectedYear]?.filter(row => row.majorCategory === selectedMajorCategory).map(row => row.mediumCategory))] : [];
+  const minorCategories = selectedYear && selectedMajorCategory && selectedMediumCategory ? [...new Set(similarIndustryDatabase[selectedYear]?.filter(row => row.majorCategory === selectedMajorCategory && row.mediumCategory === selectedMediumCategory).map(row => row.minorCategory))] : [];
+
+  /**
+   * 類似業種比準価額のA（株価）を選択する
+   * 通達182条：課税時期の月、前月、前々月、前年平均、前々年平均のうち最も低い値
+   * 現在のデータでは月次データがないため、年平均Aをベースに判定する
+   */
+  const getAValue = (
+    year: string,
+    _month: string,
+    rule: 'lowest3Months' | 'previousYearAverage' | 'last2YearsAverage',
+    industryData: SimilarIndustryDataRow,
+    database: SimilarIndustryDatabase
+  ): number => {
+    const currentYearNumber = parseInt(year.replace('令和', '').replace('年', ''));
+
+    const findData = (targetYear: string) =>
+      database[targetYear]?.find(
+        (row) =>
+          row.majorCategory === industryData.majorCategory &&
+          row.mediumCategory === industryData.mediumCategory &&
+          row.minorCategory === industryData.minorCategory
+      );
+
+    if (rule === 'lowest3Months') {
+      // 月次データがない場合は当年の年平均Aをフォールバック使用
+      // TODO: monthlyAデータが追加されたら月次比較に対応
+      return industryData.A || 0;
+    } else if (rule === 'previousYearAverage') {
+      const previousYearData = findData(`令和${currentYearNumber - 1}��`);
+      return previousYearData ? previousYearData.A : 0;
+    } else if (rule === 'last2YearsAverage') {
+      const prev1 = findData(`令和${currentYearNumber - 1}��`);
+      const prev2 = findData(`令和${currentYearNumber - 2}年`);
+      const values: number[] = [];
+      if (prev1) values.push(prev1.A);
+      if (prev2) values.push(prev2.A);
+      return values.length > 0 ? values.reduce((sum, val) => sum + val, 0) / values.length : 0;
+    }
+    return 0;
+  };
+
+  /**
+   * 類似業種比準価額を計算する（しんしゃく率適用済み）
+   * 通達180条: A × { (b/B' + c/C' + d/D') / 3 } × しんしゃく率
+   * しんしゃく率: 大会社0.7、中会社0.6、小会社0.5
+   */
+  const calcSimilarIndustryValue = (sizeLabel: 'large' | 'medium' | 'small'): number => {
+    if (!selectedIndustryData || data.dividendPerShare <= 0 || data.profitPerShare <= 0 || data.netAssetPerShare <= 0) {
+      return 0;
+    }
+    const A = getAValue(selectedYear, selectedMonth, stockPriceSelectionRule, selectedIndustryData, similarIndustryDatabase);
+    const bRatio = data.dividendPerShare / selectedIndustryData.B_prime;
+    const cRatio = data.profitPerShare / selectedIndustryData.C_prime;
+    const dRatio = data.netAssetPerShare / selectedIndustryData.D_prime;
+
+    const discountRate = sizeLabel === 'large' ? 0.7 : sizeLabel === 'medium' ? 0.6 : 0.5;
+    return A * ((bRatio + cRatio + dRatio) / 3) * discountRate;
+  };
+
   const performRealTimeCalculation = () => {
     const { companySize, lRatio } = companySizeData || {};
     const { isMinorityShareholder } = shareholderData || {};
 
+    // 少数株主特則の適用（配当還元方式）通達188-2条
+    if (isMinorityShareholder && data.dividendPerShare > 0) {
+      // 年配当金額（2円50銭が下限）÷ 10%
+      const adjustedDividend = Math.max(data.dividendPerShare, 2.5);
+      const dividendYieldValue = adjustedDividend / 0.10;
+      setCalculationResult({
+        finalValue: dividendYieldValue,
+        method: "dividendYield",
+        isValid: true
+      });
+      return;
+    }
+
+    const similarValue = calcSimilarIndustryValue(companySize || 'small');
+
     // 基本的なバリデーション
-    const hasRequiredValues = data.dividendPerShare > 0 && 
-                             data.profitPerShare > 0 && 
-                             data.netAssetPerShare > 0 && 
-                             data.similarIndustryValue > 0 && 
-                             data.netAssetValue > 0;
+    const hasRequiredValues = similarValue > 0 && data.netAssetValue > 0;
 
     if (!hasRequiredValues || !companySize) {
       setCalculationResult({
@@ -77,32 +177,25 @@ export default function Step4ValuationPage() {
       return;
     }
 
-    // 少数株主特則の適用
-    if (isMinorityShareholder && data.dividendYield > 0) {
-      const dividendYieldValue = data.dividendPerShare / data.dividendYield;
-      setCalculationResult({
-        finalValue: dividendYieldValue,
-        method: "dividendYield",
-        isValid: true
-      });
-      return;
-    }
-
     // 会社規模別の評価方式
     switch (companySize) {
-      case "large":
+      case "large": {
         // 大会社: 類似業種比準価額と純資産価額の低い方
-        const lowerValue = Math.min(data.similarIndustryValue, data.netAssetValue);
+        const lowerValue = Math.min(similarValue, data.netAssetValue);
         setCalculationResult({
           finalValue: lowerValue,
-          method: data.similarIndustryValue <= data.netAssetValue ? "similarIndustry" : "netAsset",
+          method: similarValue <= data.netAssetValue ? "similarIndustry" : "netAsset",
           isValid: true
         });
         break;
+      }
 
-      case "medium":
-        // 中会社: L×類似業種比準価額 + (1-L)×純資産価額
-        const combinedValue = data.similarIndustryValue * (lRatio || 0) + data.netAssetValue * (1 - (lRatio || 0));
+      case "medium": {
+        // 中会社: 類似業種比準価額×L + 純資産価額(80%相当額)×(1-L)
+        // 80%相当額 = 純資産価額 × 0.8
+        const na80 = data.netAssetValue * 0.8;
+        const combinedValue = similarValue * (lRatio || 0) + na80 * (1 - (lRatio || 0));
+        // 純資産価額（100%）との比較で低い方を採用
         const finalValue = Math.min(combinedValue, data.netAssetValue);
         setCalculationResult({
           finalValue,
@@ -110,62 +203,22 @@ export default function Step4ValuationPage() {
           isValid: true
         });
         break;
+      }
 
       case "small":
-      default:
-        // 小会社: 純資産価額
+      default: {
+        // 小会社: 原則は純資産価額
+        // 併用方式（任意適用）: 類似業種比準価額×0.5 + 純資産価額×0.5
+        const combinedSmall = similarValue * 0.5 + data.netAssetValue * 0.5;
+        const smallFinal = Math.min(combinedSmall, data.netAssetValue);
+        // 純資産価額が低い場合は純資産価額、併用方式が低い場合は併用方式
         setCalculationResult({
-          finalValue: data.netAssetValue,
-          method: "netAsset",
+          finalValue: Math.min(data.netAssetValue, smallFinal),
+          method: smallFinal < data.netAssetValue ? "smallCombined" : "netAsset",
           isValid: true
         });
         break;
-    }
-  };
-
-  const calculateValuation = () => {
-    const { companySize, lRatio } = companySizeData || {};
-    const { isMinorityShareholder } = shareholderData || {};
-
-    // 少数株主特則の適用
-    if (isMinorityShareholder) {
-      const dividendYieldValue = data.dividendPerShare / data.dividendYield;
-      return {
-        finalValue: dividendYieldValue,
-        method: "dividendYield",
-      };
-    }
-
-    // 会社規模別の評価方式
-    switch (companySize) {
-      case "large":
-        // 大会社: 類似業種比準価額と純資産価額の低い方
-        const lowerValue = Math.min(data.similarIndustryValue, data.netAssetValue);
-        return {
-          finalValue: lowerValue,
-          method: data.similarIndustryValue <= data.netAssetValue ? "similarIndustry" : "netAsset",
-        };
-
-      case "medium":
-        // 中会社: L×類似業種比準価額 + (1-L)×純資産価額
-        const combinedValue = data.similarIndustryValue * (lRatio || 0) + data.netAssetValue * (1 - (lRatio || 0));
-        
-        // 80%相当額の上限チェック
-        const eightyPercentValue = data.netAssetValue * 0.8;
-        const finalValue = Math.min(combinedValue, eightyPercentValue);
-        
-        return {
-          finalValue,
-          method: "combined",
-        };
-
-      case "small":
-      default:
-        // 小会社: 純資産価額
-        return {
-          finalValue: data.netAssetValue,
-          method: "netAsset",
-        };
+      }
     }
   };
 
@@ -193,11 +246,8 @@ export default function Step4ValuationPage() {
       newErrors.netAssetPerShare = getErrorMessage("1株当たり純資産価額", "positive");
     }
 
-    if (!validators.required(data.similarIndustryValue)) {
-      newErrors.similarIndustryValue = getErrorMessage("類似業種比準価額", "required");
-    }
-    if (!validators.positive(data.similarIndustryValue)) {
-      newErrors.similarIndustryValue = getErrorMessage("類似業種比準価額", "positive");
+    if (!selectedIndustryData) {
+      newErrors.similarIndustryValue = getErrorMessage("類似業種比準価額のデータ", "required");
     }
 
     if (!validators.required(data.netAssetValue)) {
@@ -211,18 +261,16 @@ export default function Step4ValuationPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleCalculate = () => {
-    if (!validateForm()) return;
-    performRealTimeCalculation();
-  };
-
   const handleNext = () => {
     if (!validateForm()) return;
 
-    const finalData = { 
-      ...data, 
+    const similarValue = calcSimilarIndustryValue(companySizeData?.companySize || 'small');
+    const finalData = {
+      ...data,
+      similarIndustryValue: similarValue,
       finalValue: calculationResult.finalValue,
-      method: calculationResult.method
+      method: calculationResult.method,
+      selectedIndustryData: selectedIndustryData,
     };
     setValuationData(finalData);
     router.push("/wizard/step5-result");
@@ -238,7 +286,7 @@ export default function Step4ValuationPage() {
   // 初期化時にリアルタイム計算を実行
   useEffect(() => {
     performRealTimeCalculation();
-  }, [data, companySize, lRatio, isMinorityShareholder]);
+  }, [data, companySize, lRatio, isMinorityShareholder, selectedIndustryData]);
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
@@ -251,7 +299,12 @@ export default function Step4ValuationPage() {
         <FormSection title="基本数値（第4表・第5表）" required>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <CurrencyInput
-              label="1株当たり年配当"
+              label={
+                <div className="flex items-center">
+                  1株当たり年配当
+                  <Tooltip text="会社の年間の配当金を株式数で割った値です。第4表で計算します。" />
+                </div>
+              }
               value={data.dividendPerShare}
               onChange={(value) => updateData("dividendPerShare", value)}
               placeholder="例: 50"
@@ -260,7 +313,12 @@ export default function Step4ValuationPage() {
               dataTestId="dividend-per-share"
             />
             <CurrencyInput
-              label="1株当たり年利益"
+              label={
+                <div className="flex items-center">
+                  1株当たり年利益
+                  <Tooltip text="会社の年間の利益を株式数で割った値です。第4表で計算します。" />
+                </div>
+              }
               value={data.profitPerShare}
               onChange={(value) => updateData("profitPerShare", value)}
               placeholder="例: 100"
@@ -269,7 +327,12 @@ export default function Step4ValuationPage() {
               dataTestId="profit-per-share"
             />
             <CurrencyInput
-              label="1株当たり純資産価額"
+              label={
+                <div className="flex items-center">
+                  1株当たり純資産価額
+                  <Tooltip text="会社の純資産を株式数で割った値です。第5表で計算します。" />
+                </div>
+              }
               value={data.netAssetPerShare}
               onChange={(value) => updateData("netAssetPerShare", value)}
               placeholder="例: 800"
@@ -282,17 +345,163 @@ export default function Step4ValuationPage() {
 
         <FormSection title="評価価額" required>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                評価年
+              </label>
+              <select
+                value={selectedYear}
+                onChange={(e) => {
+                  setSelectedYear(e.target.value);
+                  setSelectedMajorCategory('');
+                  setSelectedMediumCategory('');
+                  setSelectedMinorCategory('');
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                {years.map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                評価月
+              </label>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                {Array.from({ length: 12 }, (_, i) => `${i + 1}月`).map(month => (
+                  <option key={month} value={month}>{month}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                大分類
+              </label>
+              <select
+                value={selectedMajorCategory}
+                onChange={(e) => {
+                  setSelectedMajorCategory(e.target.value);
+                  setSelectedMediumCategory('');
+                  setSelectedMinorCategory('');
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="">選択してください</option>
+                {majorCategories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                中分類
+              </label>
+              <select
+                value={selectedMediumCategory}
+                onChange={(e) => {
+                  setSelectedMediumCategory(e.target.value);
+                  setSelectedMinorCategory('');
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="">選択してください</option>
+                {mediumCategories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                小分類
+              </label>
+              <select
+                value={selectedMinorCategory}
+                onChange={(e) => setSelectedMinorCategory(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="">選択してください</option>
+                {minorCategories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                株価選択ルール
+              </label>
+              <div className="flex flex-col space-y-2">
+                <label className="inline-flex items-center">
+                  <input
+                    type="radio"
+                    className="form-radio"
+                    name="stockPriceSelectionRule"
+                    value="lowest3Months"
+                    checked={stockPriceSelectionRule === 'lowest3Months'}
+                    onChange={(e) => setStockPriceSelectionRule(e.target.value as any)}
+                  />
+                  <span className="ml-2 text-sm text-gray-700">直前3か月のうち最低</span>
+                </label>
+                <label className="inline-flex items-center">
+                  <input
+                    type="radio"
+                    className="form-radio"
+                    name="stockPriceSelectionRule"
+                    value="previousYearAverage"
+                    checked={stockPriceSelectionRule === 'previousYearAverage'}
+                    onChange={(e) => setStockPriceSelectionRule(e.target.value as any)}
+                  />
+                  <span className="ml-2 text-sm text-gray-700">前年平均</span>
+                </label>
+                <label className="inline-flex items-center">
+                  <input
+                    type="radio"
+                    className="form-radio"
+                    name="stockPriceSelectionRule"
+                    value="last2YearsAverage"
+                    checked={stockPriceSelectionRule === 'last2YearsAverage'}
+                    onChange={(e) => setStockPriceSelectionRule(e.target.value as any)}
+                  />
+                  <span className="ml-2 text-sm text-gray-700">直前2年平均</span>
+                </label>
+              </div>
+            </div>
+
+            {selectedIndustryData && (
+              <div className="md:col-span-2 bg-gray-100 p-4 rounded-lg">
+                <h4 className="font-medium text-gray-900 mb-2">選択された業種データ</h4>
+                <p className="text-sm text-gray-700">A (年平均株価): {selectedIndustryData.A}</p>
+                <p className="text-sm text-gray-700">B&apos; (配当): {selectedIndustryData.B_prime}</p>
+                <p className="text-sm text-gray-700">C&apos; (利益): {selectedIndustryData.C_prime}</p>
+                <p className="text-sm text-gray-700">D&apos; (純資産): {selectedIndustryData.D_prime}</p>
+                {selectedIndustryData.monthlyA && (
+                  <div className="mt-2">
+                    <h5 className="font-medium text-gray-800">月次株価 (A)</h5>
+                    <div className="grid grid-cols-4 gap-1 text-xs text-gray-600">
+                      {Object.entries(selectedIndustryData.monthlyA).map(([month, value]) => (
+                        <span key={month}>{month}: {value}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <CurrencyInput
-              label="類似業種比準価額"
-              value={data.similarIndustryValue}
-              onChange={(value) => updateData("similarIndustryValue", value)}
-              placeholder="例: 1000"
-              min={0}
-              error={errors.similarIndustryValue}
-              dataTestId="similar-industry-value"
-            />
-            <CurrencyInput
-              label="純資産価額"
+              label={
+                <div className="flex items-center">
+                  純資産価額
+                  <Tooltip text="会社の純資産を基に算出される株価です。" />
+                </div>
+              }
               value={data.netAssetValue}
               onChange={(value) => updateData("netAssetValue", value)}
               placeholder="例: 800"
@@ -304,23 +513,19 @@ export default function Step4ValuationPage() {
         </FormSection>
 
         {isMinorityShareholder && (
-          <FormSection title="少数株主特則">
+          <FormSection title="少数株主特則（配当還元方式）">
             <div className="bg-blue-50 p-4 rounded-lg">
               <p className="text-sm text-blue-800 mb-2">
                 少数株主（5%未満）のため、配当還元方式が適用されます。
               </p>
-              <NumberInput
-                label="配当利回り"
-                value={data.dividendYield}
-                onChange={(value) => updateData("dividendYield", value)}
-                placeholder="0.05"
-                min={0.01}
-                max={1}
-                step={0.01}
-                error={errors.dividendYield}
-                dataTestId="dividend-yield"
-              />
-      </div>
+              <p className="text-xs text-blue-700 mb-2">
+                計算式: 年配当金額（2円50銭未満の場合は2円50銭）÷ 10%
+              </p>
+              <p className="text-xs text-blue-600">
+                ※ 配当還元方式では、上記「1株当たり年配当」の値を使用します。
+                通達188-2条により還元率は10%（固定）です。
+              </p>
+            </div>
           </FormSection>
         )}
 
@@ -331,6 +536,9 @@ export default function Step4ValuationPage() {
                 <div>
                   <p className="font-medium">大会社: 類似業種比準価額と純資産価額の低い方を採用</p>
                   <p className="text-xs text-gray-600">
+                    類似業種比準価額 = A × ((b/B&apos; + c/C&apos; + d/D&apos;) / 3) × 0.7（しんしゃく率）
+                  </p>
+                  <p className="text-xs text-gray-600">
                     評価式: min(類似業種比準価額, 純資産価額)
                   </p>
                 </div>
@@ -339,26 +547,32 @@ export default function Step4ValuationPage() {
                 <div>
                   <p className="font-medium">中会社{companySizeData?.lClass ? `（${companySizeData.lClass}）` : ''}: 併用方式（L = {lRatio}）</p>
                   <p className="text-xs text-gray-600">
-                    評価式: min(類似業種比準価額 × {lRatio} + 純資産価額 × (1 - {lRatio}), 純資産価額)
+                    類似業種比準価額 = A × ((b/B&apos; + c/C&apos; + d/D&apos;) / 3) × 0.6（しんしゃく率）
                   </p>
-          </div>
-        )}
+                  <p className="text-xs text-gray-600">
+                    評価式: min(類似業種比準価額 × {lRatio} + 純資産価額(80%相当額) × (1 - {lRatio}), 純資産価額)
+                  </p>
+                </div>
+              )}
               {companySize === "small" && (
                 <div>
-                  <p className="font-medium">小会社: 純資産価額方式</p>
+                  <p className="font-medium">小会社: 純資産価額方式（併用方式の任意適用あり）</p>
                   <p className="text-xs text-gray-600">
-                    評価式: 純資産価額
+                    類似業種比準価額 = A × ((b/B&apos; + c/C&apos; + d/D&apos;) / 3) × 0.5（しんしゃく率）
                   </p>
-      </div>
+                  <p className="text-xs text-gray-600">
+                    原則: 純資産価額 / 併用: min(類似業種比準 × 0.5 + 純資産 × 0.5, 純資産価額)
+                  </p>
+                </div>
               )}
               {isMinorityShareholder && (
                 <div>
                   <p className="font-medium text-blue-600">少数株主特則: 配当還元方式</p>
                   <p className="text-xs text-gray-600">
-                    評価式: 年配当 ÷ 配当利回り
+                    評価式: 年配当金額（下限2円50銭） ÷ 10%
                   </p>
-        </div>
-      )}
+                </div>
+              )}
             </div>
           </div>
         </FormSection>
@@ -370,9 +584,10 @@ export default function Step4ValuationPage() {
                 <div>
                   <h4 className="font-medium text-green-900">最終評価額</h4>
                   <p className="text-sm text-green-700">
-                    評価方式: {calculationResult.method === "dividendYield" ? "配当還元方式" : 
+                    評価方式: {calculationResult.method === "dividendYield" ? "配当還元方式" :
                               calculationResult.method === "similarIndustry" ? "類似業種比準価額方式" :
-                              calculationResult.method === "netAsset" ? "純資産価額方式" : "併用方式"}
+                              calculationResult.method === "netAsset" ? "純資産価額方式" :
+                              calculationResult.method === "smallCombined" ? "併用方式（小会社任意適用）" : "併用方式"}
                   </p>
                   <p className="text-xs text-green-600 mt-1">
                     ※ 入力値を変更すると自動的に再計算されます
@@ -389,7 +604,7 @@ export default function Step4ValuationPage() {
           </FormSection>
         )}
 
-        {!calculationResult.isValid && (data.dividendPerShare > 0 || data.profitPerShare > 0 || data.netAssetPerShare > 0 || data.similarIndustryValue > 0 || data.netAssetValue > 0) && (
+        {!calculationResult.isValid && (data.dividendPerShare > 0 || data.profitPerShare > 0 || data.netAssetPerShare > 0 || (data.similarIndustryValue ?? 0) > 0 || data.netAssetValue > 0) && (
           <FormSection title="計算結果">
             <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
               <div className="flex items-center">

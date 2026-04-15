@@ -66,7 +66,7 @@ export function FormCard({
 }
 
 interface FormSectionProps {
-  title: string
+  title: React.ReactNode
   children: React.ReactNode
   className?: string
   required?: boolean

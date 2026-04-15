@@ -84,11 +84,12 @@ export class DecisionTrailExplainer {
   private explainShareholderResult(result: any): string {
     const { familyGroupRatio, leadingShareholderGroupRatio, isMinorityShareholder } = result
     
-    let explanation = `同族関係者グループ比率: ${(familyGroupRatio * 100).toFixed(1)}%, `
+    let explanation = '株主構成を判定しました。'
+    explanation += `同族関係者グループ比率: ${(familyGroupRatio * 100).toFixed(1)}%, `
     explanation += `筆頭株主グループ比率: ${(leadingShareholderGroupRatio * 100).toFixed(1)}%`
     
     if (isMinorityShareholder) {
-      explanation += '。少数株主（5%未満）のため、配当還元方式が適用されます。'
+      explanation += '。納税義務者が少数株主（議決権割合5%未満）であるため、評価方式は配当還元方式が適用されます。'
     }
     
     return explanation
@@ -101,7 +102,7 @@ export class DecisionTrailExplainer {
     const { isSpecialCompany, specialTypes } = result
     
     if (!isSpecialCompany) {
-      return '特定会社等に該当しません。'
+      return '特定会社等に該当しません。評価方式に影響はありません。'
     }
     
     const typeNames = specialTypes.map((type: string) => {
@@ -115,24 +116,24 @@ export class DecisionTrailExplainer {
       return typeMap[type] || type
     })
     
-    return `特定会社等に該当します。該当類型: ${typeNames.join(', ')}`
+    return `特定会社等に該当します。該当類型: ${typeNames.join(', ')}。評価方式に影響があります。`
   }
 
   /**
    * 会社規模判定結果の説明を生成
    */
   private explainCompanySizeResult(result: any): string {
-    const { companySize, lRatio, industry, employees, assets, sales } = result
+    const { companySize, industry, employees, assets, sales } = result
     
     let explanation = `従業員数: ${employees}人, 資産: ${this.formatNumber(assets)}円, `
     explanation += `売上: ${this.formatNumber(sales)}円, 業種: ${industry}`
     
     if (companySize === 'large') {
-      explanation += '。大会社（70人以上）に該当します。'
+      explanation += '。この会社は、その規模から大会社に分類されます。大会社は原則として類似業種比準価額と純資産価額の低い方で評価されます。'
     } else if (companySize === 'medium') {
-      explanation += `。中会社に該当し、L = ${lRatio} が適用されます。`
+      explanation += `。この会社は、その規模から中会社に分類され、L値が適用されます。中会社は類似業種比準価額と純資産価額をL値で加重平均して評価されます。`
     } else {
-      explanation += '。小会社に該当します。'
+      explanation += '。この会社は、その規模から小会社に分類されます。小会社は原則として純資産価額で評価されます。'
     }
     
     return explanation
@@ -144,7 +145,7 @@ export class DecisionTrailExplainer {
   private explainValuationResult(result: any): string {
     const { method, finalValue, similarIndustryValue, netAssetValue, lRatio } = result
     
-    let explanation = `最終評価額: ${this.formatNumber(finalValue)}円。`
+    let explanation = `最終的な1株当たり評価額を算出しました。最終評価額: ${this.formatNumber(finalValue)}円。`
     
     switch (method) {
       case 'netAsset':

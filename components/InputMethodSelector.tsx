@@ -1,5 +1,6 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { Tooltip } from '@/components/Tooltip';
 
 interface InputMethodSelectorProps {
   selectedMethod: 'detailed' | 'simple';
@@ -67,6 +68,7 @@ export default function InputMethodSelector({ selectedMethod, onMethodChange }: 
               )}
             </div>
             <h4 className="text-lg font-semibold text-gray-800">簡易入力</h4>
+          <Tooltip text="簡易入力は、株主構成を簡略化して入力するため、詳細な評価には向いていません。非公式な試算にご利用ください。" />
           </div>
           <p className="text-gray-600 text-sm leading-relaxed">
             フローチャートに基づくドロップダウン選択で、段階的に判定を行います。

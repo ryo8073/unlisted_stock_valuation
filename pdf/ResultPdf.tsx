@@ -8,11 +8,11 @@ Font.register({
   family: 'NotoSansJP',
   fonts: [
     { 
-      src: 'https://fonts.gstatic.com/s/notosansjp/v52/-F62fjtqLzI2JPCgQBnw7HFowAIO2lZ9hgFvQ.woff2',
+      src: '/public/fonts/Noto_Sans_JP/static/NotoSansJP-Regular.ttf',
       fontWeight: 'normal' 
     },
     { 
-      src: 'https://fonts.gstatic.com/s/notosansjp/v52/-F6pfjtqLzI2JPCgQBnw7HFoOaHq4lY9sA.woff2',
+      src: '/public/fonts/Noto_Sans_JP/static/NotoSansJP-Bold.ttf',
       fontWeight: 'bold' 
     },
   ]
@@ -42,7 +42,20 @@ interface EvalResult {
     L: number;
     fte?: number;
   };
-  valuation?: { perShare?: number };
+  valuation?: {
+    perShare?: number;
+    selectedIndustryData?: {
+      year?: string;
+      majorCategory?: string;
+      mediumCategory?: string;
+      minorCategory?: string;
+      A?: number;
+      B_prime?: number;
+      C_prime?: number;
+      D_prime?: number;
+    };
+    similarIndustryValue?: number;
+  };
   trail?: Array<{ node: string; out: any; sourceRef?: string }>;
 }
 
@@ -50,21 +63,38 @@ const styles = StyleSheet.create({
   page: {
     flexDirection: "column",
     backgroundColor: "#ffffff",
-    padding: 20, // パディングを縮小
+    padding: 30, // パディングを拡大
     fontFamily: 'NotoSansJP', // 日本語フォントに変更
   },
   h1: {
     fontSize: 14, // フォントサイズを縮小
-    marginBottom: 6,
+    marginBottom: 10,
     fontFamily: 'NotoSansJP',
     fontWeight: 'bold',
   },
   h2: {
     fontSize: 10, // フォントサイズを縮小
     marginTop: 12,
-    marginBottom: 6,
+    marginBottom: 10,
     fontFamily: 'NotoSansJP',
     fontWeight: 'bold',
+  },
+  h3: {
+    fontSize: 9,
+    marginBottom: 5,
+    fontFamily: 'NotoSansJP',
+    fontWeight: 'bold',
+  },
+  dataText: {
+    fontSize: 8,
+    marginBottom: 2,
+    fontFamily: 'NotoSansJP',
+  },
+  similarIndustryDataContainer: {
+    border: 1,
+    borderColor: '#e0e0e0',
+    padding: 8,
+    marginBottom: 10,
   },
   table: {
     display: "flex",
@@ -73,12 +103,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRightWidth: 0,
     borderBottomWidth: 0,
-    marginBottom: 12, // マージンを縮小
+    marginBottom: 15, // マージンを拡大
   },
   tableRow: {
     margin: "auto",
     flexDirection: "row",
-    minHeight: 20, // 高さを縮小
+    // minHeight: 20, // 高さを縮小 -> 削除
   },
   tableCol: {
     width: "25%",
@@ -91,11 +121,11 @@ const styles = StyleSheet.create({
     margin: "auto",
     marginTop: 3,
     fontSize: 8, // フォントサイズを縮小
-    padding: 3,
+    padding: 5,
   },
   row: {
     flexDirection: "row",
-    minHeight: 20, // 高さを縮小
+    // minHeight: 20, // 高さを縮小 -> 削除
   },
   cellHead: {
     width: "40%",
@@ -103,11 +133,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderLeftWidth: 0,
     borderTopWidth: 0,
-    padding: 4, // パディングを縮小
+    padding: 6, // パディングを拡大
     backgroundColor: "#f5f5f5",
     fontFamily: 'NotoSansJP',
     fontWeight: 'bold',
     fontSize: 8, // フォントサイズを縮小
+    flexWrap: 'wrap', // Add wrap
   },
   cell: {
     width: "60%",
@@ -115,8 +146,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderLeftWidth: 0,
     borderTopWidth: 0,
-    padding: 4, // パディングを縮小
+    padding: 6, // パディングを拡大
     fontSize: 8, // フォントサイズを縮小
+    flexWrap: 'wrap', // Add wrap
   },
   mono: {
     fontSize: 7, // フォントサイズを縮小
@@ -130,14 +162,21 @@ const styles = StyleSheet.create({
   },
   trailContainer: {
     border: 1,
-    padding: 6, // パディングを縮小
+    padding: 10, // パディングを拡大
     marginTop: 6, // マージンを縮小
-    maxHeight: 100, // 高さをさらに制限
+    maxHeight: 150, // 高さを拡大
   },
   date: {
     fontSize: 9, // フォントサイズを縮小
     color: "#666",
-    marginBottom: 6, // マージンを縮小
+    marginBottom: 10, // マージンを拡大
+    fontFamily: 'NotoSansJP',
+  },
+  skippedText: {
+    fontSize: 8,
+    color: "#666",
+    marginTop: 5,
+    marginBottom: 10,
     fontFamily: 'NotoSansJP',
   },
 });
@@ -169,22 +208,43 @@ export default function ResultPdf({
         />
 
         <Text style={styles.h2}>第2表｜特定会社等</Text>
-        <Table rows={[["特定会社区分（後順位優先）", data.special?.specialType ?? "該当なし"]]} />
+        {data.special ? (
+          <Table rows={[["特定会社区分（後順位優先）", data.special?.specialType ?? "該当なし"]]} />
+        ) : (
+          <Text style={styles.skippedText}>特定会社等の判定はスキップされました。</Text>
+        )}
 
         <Text style={styles.h2}>第1表の2｜会社規模・L</Text>
-        <Table
-          rows={[
-            ["会社規模", data.size?.size ?? "—"],
-            ["区分", data.size?.LClass ?? "—"],
-            ["L", data.size?.L != null ? String(data.size?.L) : "—"],
-            [
-              "FTE（非常勤=時間÷1,800）",
-              data.size?.fte != null ? data.size.fte.toFixed(2) : "—",
-            ],
-          ]}
-        />
+        {data.size ? (
+          <Table
+            rows={[
+              ["会社規模", data.size?.size ?? "—"],
+              ["区分", data.size?.LClass ?? "—"],
+              ["L", data.size?.L != null ? String(data.size?.L) : "—"],
+              [
+                "FTE（非常勤=時間÷1,800）",
+                data.size?.fte != null ? data.size.fte.toFixed(2) : "—",
+              ],
+            ]}
+          />
+        ) : (
+          <Text style={styles.skippedText}>会社規模の判定はスキップされました。</Text>
+        )}
 
         <Text style={styles.h2}>第3表｜評価額</Text>
+        {data.valuation?.selectedIndustryData && (
+          <View style={styles.similarIndustryDataContainer}>
+            <Text style={styles.h3}>類似業種比準価額データ</Text>
+            <Text style={styles.dataText}>評価年: {data.valuation.selectedIndustryData.year}</Text>
+            <Text style={styles.dataText}>大分類: {data.valuation.selectedIndustryData.majorCategory}</Text>
+            <Text style={styles.dataText}>中分類: {data.valuation.selectedIndustryData.mediumCategory}</Text>
+            <Text style={styles.dataText}>小分類: {data.valuation.selectedIndustryData.minorCategory}</Text>
+            <Text style={styles.dataText}>A (株価): {data.valuation.selectedIndustryData.A}</Text>
+            <Text style={styles.dataText}>B' (配当): {data.valuation.selectedIndustryData.B_prime}</Text>
+            <Text style={styles.dataText}>C' (利益): {data.valuation.selectedIndustryData.C_prime}</Text>
+            <Text style={styles.dataText}>D' (純資産): {data.valuation.selectedIndustryData.D_prime}</Text>
+          </View>
+        )}
         <Table
           rows={[
             [

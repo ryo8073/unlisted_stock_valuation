@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { cn } from '@/lib/utils';
 
 interface SimpleShareholderInputProps {
   onComplete: (data: SimpleShareholderData) => void;
@@ -302,7 +301,7 @@ export default function SimpleShareholderInput({ onComplete }: SimpleShareholder
         <div className="space-y-3">
           {currentStepData?.options.map((option) => (
             <button
-              key={option.value}
+              key={String(option.value)}
               onClick={() => handleAnswer(option.value)}
               className="w-full p-4 text-left border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-primary-50 transition-all duration-200"
             >
