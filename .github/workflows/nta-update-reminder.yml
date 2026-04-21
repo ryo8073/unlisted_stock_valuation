@@ -1,0 +1,78 @@
+name: NTA Data Update Reminder
+
+# 毎月1日の朝9時（JST）に実行
+# 国税庁は毎月（または2ヶ月ごと）に月次株価データを公表するため
+on:
+  schedule:
+    - cron: '0 0 1 * *'  # UTC 0:00 = JST 9:00
+  workflow_dispatch:     # 手動実行も可能
+
+jobs:
+  check-and-notify:
+    name: Check NTA Data Freshness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      - name: Run NTA data check
+        id: nta_check
+        run: |
+          npx tsx scripts/check-nta-data.ts 2>&1 | tee nta_check_output.txt
+          echo "output<<EOF" >> $GITHUB_OUTPUT
+          cat nta_check_output.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Create update reminder issue (if stale)
+        if: steps.nta_check.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const today = new Date().toISOString().split('T')[0];
+            const title = `[自動] 国税庁データ更新確認 ${today}`;
+
+            // 既存の同名issueを確認
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'nta-data-update',
+            });
+
+            const existing = issues.data.find(i => i.title.includes('国税庁データ更新確認'));
+            if (existing) {
+              console.log('Update issue already exists:', existing.html_url);
+              return;
+            }
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              labels: ['nta-data-update'],
+              body: `## 国税庁 類似業種比準価額データの更新が必要です
+
+            ### 確認内容
+            \`scripts/check-nta-data.ts\` が古いデータを検出しました。
+
+            ### 対応手順
+            1. [国税庁ウェブサイト](https://www.nta.go.jp/law/tsutatsu/kobetsu/hyoka/) から最新データを確認
+            2. 最新の月次株価（A値）を \`lib/database/similarIndustryData.ts\` の \`monthlyA\` に追加
+            3. 新年度分がリリースされている場合は新しいキー（例：\`令和8年\`）でデータ全体を追加
+            4. \`scripts/check-nta-data.ts\` を実行して検証
+
+            ### データ更新先URL
+            - 令和7年分: https://www.nta.go.jp/law/tsutatsu/kobetsu/hyoka/r07/2506/index.htm
+            - 最新: https://www.nta.go.jp/law/tsutatsu/kobetsu/hyoka/
+
+            ### チェック結果
+            \`\`\`
+            ${{ steps.nta_check.outputs.output }}
+            \`\`\`
+            `,
+            });

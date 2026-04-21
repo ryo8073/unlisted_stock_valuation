@@ -1,0 +1,9 @@
+#!/bin/sh
+# pre-push: プッシュ前にtype-check + unit tests
+echo "▶ Type check..."
+npm run type-check || { echo "❌ Type check failed"; exit 1; }
+
+echo "▶ Unit tests..."
+npm run test:run || { echo "❌ Tests failed"; exit 1; }
+
+echo "✅ Pre-push checks passed"
