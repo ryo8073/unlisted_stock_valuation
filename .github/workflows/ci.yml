@@ -2,43 +2,40 @@ name: CI / Pre-deploy Validation
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
+    paths:
+      # これ以外のファイル（README、メモ等）のコミットはCIをスキップ
+      - 'app/**'
+      - 'lib/**'
+      - 'components/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'package.json'
+      - 'tsconfig.json'
+      - '.eslintrc.json'
+      - 'next.config.js'
   pull_request:
     branches: [main]
 
 jobs:
   # ─────────────────────────────────────────────
-  # 1. 型チェック
+  # 1. 型チェック + Lint（統合して消費分数を削減）
   # ─────────────────────────────────────────────
-  typecheck:
-    name: TypeScript Type Check
+  typecheck-and-lint:
+    name: TypeCheck & Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-      - run: npm ci
+          cache: npm          # node_modules をキャッシュして npm ci を高速化
+      - run: npm ci --prefer-offline
       - run: npm run type-check
-
-  # ─────────────────────────────────────────────
-  # 2. Lint
-  # ─────────────────────────────────────────────
-  lint:
-    name: ESLint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
       - run: npm run lint
 
   # ─────────────────────────────────────────────
-  # 3. ユニットテスト
+  # 2. ユニットテスト
   # ─────────────────────────────────────────────
   unit-tests:
     name: Unit Tests (Vitest)
@@ -49,42 +46,30 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
-      - run: npm run test -- --run --reporter=verbose
-      - name: Upload coverage
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-report
-          path: coverage/
+      - run: npm ci --prefer-offline
+      - run: npm run test:run
 
   # ─────────────────────────────────────────────
-  # 4. ビルド検証（Vercel デプロイ前チェック）
+  # 3. ビルド検証（typecheck-and-lint 通過後のみ実行）
   # ─────────────────────────────────────────────
   build:
     name: Next.js Build
     runs-on: ubuntu-latest
-    needs: [typecheck, lint]
+    needs: [typecheck-and-lint]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      - run: npm ci --prefer-offline
       - run: npm run build
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: nextjs-build
-          path: .next/
-          retention-days: 1
 
   # ─────────────────────────────────────────────
-  # 5. 国税庁データ鮮度チェック
+  # 4. 国税庁データ鮮度チェック（警告のみ・デプロイはブロックしない）
   # ─────────────────────────────────────────────
   nta-data-check:
-    name: NTA Data Freshness Check
+    name: NTA Data Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -92,29 +77,27 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
-      - run: npx tsx scripts/check-nta-data.ts
-        continue-on-error: true  # 警告はデプロイをブロックしない
+      - run: npm ci --prefer-offline
+      - run: npm run check-nta
+        continue-on-error: true
 
   # ─────────────────────────────────────────────
-  # 6. Pre-mortem サマリー（全ジョブ完了後）
+  # 5. Pre-mortem サマリー
   # ─────────────────────────────────────────────
   pre-mortem-summary:
     name: Pre-mortem Summary
     runs-on: ubuntu-latest
-    needs: [typecheck, lint, unit-tests, build]
+    needs: [typecheck-and-lint, unit-tests, build]
     if: always()
     steps:
       - name: Check all gates
         run: |
           echo "=== Pre-deploy Validation Summary ==="
-          echo "TypeCheck: ${{ needs.typecheck.result }}"
-          echo "Lint:      ${{ needs.lint.result }}"
-          echo "Tests:     ${{ needs.unit-tests.result }}"
-          echo "Build:     ${{ needs.build.result }}"
+          echo "TypeCheck+Lint: ${{ needs.typecheck-and-lint.result }}"
+          echo "Tests:          ${{ needs.unit-tests.result }}"
+          echo "Build:          ${{ needs.build.result }}"
 
-          if [[ "${{ needs.typecheck.result }}" != "success" ]] ||
-             [[ "${{ needs.lint.result }}" != "success" ]] ||
+          if [[ "${{ needs.typecheck-and-lint.result }}" != "success" ]] ||
              [[ "${{ needs.unit-tests.result }}" != "success" ]] ||
              [[ "${{ needs.build.result }}" != "success" ]]; then
             echo ""
@@ -122,5 +105,4 @@ jobs:
             exit 1
           fi
 
-          echo ""
           echo "✅ All gates passed. Ready for deployment."
