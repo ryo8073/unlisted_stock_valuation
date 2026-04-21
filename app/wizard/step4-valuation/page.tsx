@@ -1162,7 +1162,7 @@ export default function Step4ValuationPage() {
                           <div className="space-y-1 text-xs">
                             <div className="flex justify-between border-b border-gray-200 py-1">
                               <span className="text-gray-600">
-                                b ÷ B'（配当の比率）
+                                b ÷ B&apos;（配当の比率）
                               </span>
                               <span>
                                 {data.dividendPerShare}円 ÷{' '}
@@ -1172,7 +1172,7 @@ export default function Step4ValuationPage() {
                             </div>
                             <div className="flex justify-between border-b border-gray-200 py-1">
                               <span className="text-gray-600">
-                                c ÷ C'（利益の比率）
+                                c ÷ C&apos;（利益の比率）
                               </span>
                               <span>
                                 {data.profitPerShare}円 ÷{' '}
@@ -1182,7 +1182,7 @@ export default function Step4ValuationPage() {
                             </div>
                             <div className="flex justify-between border-b border-gray-200 py-1">
                               <span className="text-gray-600">
-                                d ÷ D'（純資産の比率）
+                                d ÷ D&apos;（純資産の比率）
                               </span>
                               <span>
                                 {data.netAssetPerShare}円 ÷{' '}
