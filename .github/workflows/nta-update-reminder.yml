@@ -22,6 +22,11 @@ jobs:
       - name: Run NTA data check
         id: nta_check
         run: |
+          # **pipefail が無いとパイプの最後（tee）の終了コードしか残らない。**
+          # check-nta-data.ts が「令和8年のデータが無い」と1で落ちても、
+          # ステップは success になり、下の issue 作成が skipped になる。
+          # 2026-10-21 時点で、このリマインダーは一度も issue を立てていなかった。
+          set -o pipefail
           npx tsx scripts/check-nta-data.ts 2>&1 | tee nta_check_output.txt
           echo "output<<EOF" >> $GITHUB_OUTPUT
           cat nta_check_output.txt >> $GITHUB_OUTPUT
