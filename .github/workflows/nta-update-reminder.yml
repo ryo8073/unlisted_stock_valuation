@@ -11,6 +11,11 @@ jobs:
   check-and-notify:
     name: Check NTA Data Freshness
     runs-on: ubuntu-latest
+    # 既定の GITHUB_TOKEN は読み取りだけなので、issue を立てると
+    # 「Resource not accessible by integration」で落ちる（2026-10-21 実測）。
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,15 +27,30 @@ jobs:
       - name: Run NTA data check
         id: nta_check
         run: |
-          # **pipefail が無いとパイプの最後（tee）の終了コードしか残らない。**
-          # check-nta-data.ts が「令和8年のデータが無い」と1で落ちても、
-          # ステップは success になり、下の issue 作成が skipped になる。
-          # 2026-10-21 時点で、このリマインダーは一度も issue を立てていなかった。
-          set -o pipefail
-          npx tsx scripts/check-nta-data.ts 2>&1 | tee nta_check_output.txt
-          echo "output<<EOF" >> $GITHUB_OUTPUT
-          cat nta_check_output.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # ここは「落ちたこと」と「落ちた中身」の両方を残さないといけない。
+          #
+          #   以前: npx tsx ... 2>&1 | tee out.txt
+          #     パイプの終了コードは最後の tee のものになるので、常に0。
+          #     ステップは success になり、outcome == 'failure' を条件にした
+          #     下の issue 作成が **必ず skipped** になっていた。
+          #
+          #   pipefail を足すだけでは駄目。shell は -e なので、そこで中断して
+          #   $GITHUB_OUTPUT への書き出しに届かず、issue の本文が空になる。
+          #
+          # 終了コードを自分で持ち、出力を書いたあとで返す。
+          set +e
+          npx tsx scripts/check-nta-data.ts > nta_check_output.txt 2>&1
+          code=$?
+          set -e
+          cat nta_check_output.txt
+          # 区切りは出力に現れない文字列にする（本文に EOF 行があっても壊れない）
+          d="nta_$(date +%s)_$RANDOM"
+          {
+            echo "output<<$d"
+            cat nta_check_output.txt
+            echo "$d"
+          } >> "$GITHUB_OUTPUT"
+          exit $code
         continue-on-error: true
 
       - name: Create update reminder issue (if stale)
